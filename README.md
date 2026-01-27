@@ -89,29 +89,7 @@ This project uses [shadcn/ui](https://ui.shadcn.com/) components, which are:
 - **Type-safe**: Full TypeScript support
 - **Styled**: Beautiful default styles with Tailwind CSS
 
-### Installed Components
-
-- Accordion
-- Alert
-- Avatar
-- Badge
-- Button
-- Calendar
-- Card
-- Dialog
-- Dropdown Menu
-- Form (with React Hook Form integration)
-- Input
-- Label
-- Popover
-- Progress
-- Select
-- Separator
-- Sheet
-- Skeleton
-- Tabs
-- Tooltip
-
+ 
 ## Form Validation
 
 Forms use React Hook Form with Zod for type-safe validation:
