@@ -1,22 +1,20 @@
-script: |
-  set -e   # stop if any command fails
+name: Deploy to VPS
 
-  cd /var/www/sleazzy
-  git pull origin main
+on:
+  push:
+    branches:
+      - main
 
-  # --- BACKEND ---
-  cd server
-  npm ci --omit=dev
-  npm run build
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
 
-  pm2 describe backend > /dev/null \
-    && pm2 restart backend \
-    || pm2 start dist/server.js --name backend
-
-  # --- FRONTEND ---
-  cd ../client
-  npm ci
-  npm run build
-
-  # --- reload nginx (optional but good practice) ---
-  sudo systemctl reload nginx
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            /var/www/sleazzy/deploy.sh
