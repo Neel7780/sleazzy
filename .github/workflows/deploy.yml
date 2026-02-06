@@ -1,0 +1,22 @@
+script: |
+  set -e   # stop if any command fails
+
+  cd /var/www/sleazzy
+  git pull origin main
+
+  # --- BACKEND ---
+  cd server
+  npm ci --omit=dev
+  npm run build
+
+  pm2 describe backend > /dev/null \
+    && pm2 restart backend \
+    || pm2 start dist/server.js --name backend
+
+  # --- FRONTEND ---
+  cd ../client
+  npm ci
+  npm run build
+
+  # --- reload nginx (optional but good practice) ---
+  sudo systemctl reload nginx
