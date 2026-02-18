@@ -5,8 +5,10 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
+    const isProduction = process.env.NODE_ENV === 'production' || mode === 'production';
+    
     return {
-      base: mode === 'production' ? '/sleazzy/' : '/',
+      base: isProduction ? '/sleazzy/' : '/',
       server: {
         port: 3000,
         host: 'localhost',
