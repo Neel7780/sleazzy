@@ -18,26 +18,12 @@ import {
     SelectItem,
 } from './ui/select';
 import { apiRequest, ApiVenue } from '../lib/api';
-import { Trash2, Loader2 } from 'lucide-react';
-
-type Booking = {
-    id: string;
-    eventName: string;
-    venueName: string;
-    venueId: string;
-    clubName: string;
-    date: string;
-    startTime: string;
-    endTime: string;
-    status: string;
-    eventType?: string;
-    expectedAttendees?: number;
-    isPublic: boolean;
-    batchId?: string;
-};
+import { GroupedBooking } from '../types';
+import { Trash2, Loader2, MapPin } from 'lucide-react';
+import { Badge } from './ui/badge';
 
 type Props = {
-    booking: Booking | null;
+    booking: GroupedBooking | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSaved: () => void;
@@ -64,13 +50,15 @@ const EditBookingDialog: React.FC<Props> = ({
     onDeleted,
 }) => {
     const [eventName, setEventName] = useState('');
-    const [venueId, setVenueId] = useState('');
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
     const [eventType, setEventType] = useState('');
     const [expectedAttendees, setExpectedAttendees] = useState('');
     const [status, setStatus] = useState('');
     const [isPublic, setIsPublic] = useState(false);
+
+    // Multi-venue state: set of currently selected venue IDs for this group
+    const [selectedVenueIds, setSelectedVenueIds] = useState<string[]>([]);
 
     const [venues, setVenues] = useState<ApiVenue[]>([]);
     const [saving, setSaving] = useState(false);
@@ -89,26 +77,22 @@ const EditBookingDialog: React.FC<Props> = ({
     useEffect(() => {
         if (booking) {
             setEventName(booking.eventName);
-            setVenueId(booking.venueId);
+            setSelectedVenueIds(booking.venueIds || []);
             setEventType(booking.eventType || '');
             setExpectedAttendees(
                 booking.expectedAttendees ? String(booking.expectedAttendees) : ''
             );
             setStatus(booking.status);
-            setIsPublic(booking.isPublic);
+            setIsPublic(booking.isPublic ?? false);
             setConfirmDelete(false);
             setError(null);
 
-            // Convert ISO date + localeTimeString back to datetime-local format
-            const start = new Date(booking.date);
-            // Parse the start/end time strings to set on the same date
             setStartTime(toDatetimeLocal(booking.date, booking.startTime));
             setEndTime(toDatetimeLocal(booking.date, booking.endTime));
         }
     }, [booking]);
 
     const toDatetimeLocal = (isoDate: string, timeStr: string): string => {
-        // timeStr is like "6:05 PM"
         const date = new Date(isoDate);
         const [time, modifier] = timeStr.split(' ');
         let [hours, minutes] = time.split(':').map(Number);
@@ -125,28 +109,83 @@ const EditBookingDialog: React.FC<Props> = ({
         return `${year}-${month}-${day}T${h}:${m}`;
     };
 
+    const toggleVenue = (venueId: string) => {
+        setSelectedVenueIds(prev =>
+            prev.includes(venueId)
+                ? prev.filter(id => id !== venueId)
+                : [...prev, venueId]
+        );
+    };
+
     const handleSave = async () => {
         if (!booking) return;
+        if (selectedVenueIds.length === 0) {
+            setError('At least one venue must be selected.');
+            return;
+        }
+
         setSaving(true);
         setError(null);
 
+        const sharedFields = {
+            event_name: eventName,
+            start_time: new Date(startTime).toISOString(),
+            end_time: new Date(endTime).toISOString(),
+            event_type: eventType || undefined,
+            expected_attendees: expectedAttendees ? parseInt(expectedAttendees) : undefined,
+            status,
+            is_public: isPublic,
+        };
+
         try {
-            await apiRequest(`/api/admin/bookings/${booking.id}`, {
-                method: 'PUT',
-                auth: true,
-                body: {
-                    event_name: eventName,
-                    venue_id: venueId,
-                    start_time: new Date(startTime).toISOString(),
-                    end_time: new Date(endTime).toISOString(),
-                    event_type: eventType || undefined,
-                    expected_attendees: expectedAttendees
-                        ? parseInt(expectedAttendees)
-                        : undefined,
-                    status,
-                    is_public: isPublic,
-                },
-            });
+            const originalIds = booking.ids;
+            const originalVenueIds = booking.venueIds;
+
+            // Determine which bookings are kept vs removed, and which venues are new
+            const keptIds = originalIds.filter((_, i) => selectedVenueIds.includes(originalVenueIds[i]));
+            const removedIds = originalIds.filter((_, i) => !selectedVenueIds.includes(originalVenueIds[i]));
+            const addedVenueIds = selectedVenueIds.filter(vid => !originalVenueIds.includes(vid));
+
+            // 1. Update all kept bookings with the new shared field values
+            await Promise.all(keptIds.map(id =>
+                apiRequest(`/api/admin/bookings/${id}`, {
+                    method: 'PUT',
+                    auth: true,
+                    body: sharedFields,
+                })
+            ));
+
+            // 2. Delete removed bookings
+            if (removedIds.length > 0) {
+                await Promise.all(removedIds.map(id =>
+                    apiRequest(`/api/admin/bookings/${id}`, {
+                        method: 'DELETE',
+                        auth: true,
+                    })
+                ));
+            }
+
+            // 3. Add bookings for newly added venues
+            if (addedVenueIds.length > 0) {
+                const clubId = (booking as any).clubId;
+                if (clubId) {
+                    await apiRequest('/api/admin/bookings', {
+                        method: 'POST',
+                        auth: true,
+                        body: {
+                            club_id: clubId,
+                            venue_ids: addedVenueIds,
+                            event_name: eventName,
+                            start_time: new Date(startTime).toISOString(),
+                            end_time: new Date(endTime).toISOString(),
+                            event_type: eventType || undefined,
+                            expected_attendees: expectedAttendees ? parseInt(expectedAttendees) : undefined,
+                            is_public: isPublic,
+                        },
+                    });
+                }
+            }
+
             onSaved();
             onOpenChange(false);
         } catch (err: any) {
@@ -167,10 +206,13 @@ const EditBookingDialog: React.FC<Props> = ({
         setError(null);
 
         try {
-            await apiRequest(`/api/admin/bookings/${booking.id}`, {
-                method: 'DELETE',
-                auth: true,
-            });
+            // Delete ALL bookings in the group
+            await Promise.all(booking.ids.map(id =>
+                apiRequest(`/api/admin/bookings/${id}`, {
+                    method: 'DELETE',
+                    auth: true,
+                })
+            ));
             onDeleted();
             onOpenChange(false);
         } catch (err: any) {
@@ -181,13 +223,20 @@ const EditBookingDialog: React.FC<Props> = ({
         }
     };
 
+    const isMultiVenue = booking && booking.ids.length > 1;
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Edit Event</DialogTitle>
                     <DialogDescription>
                         Modify event details or delete this event entirely.
+                        {isMultiVenue && (
+                            <span className="block mt-1 text-brand font-medium">
+                                This event spans multiple venues.
+                            </span>
+                        )}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -209,21 +258,40 @@ const EditBookingDialog: React.FC<Props> = ({
                         />
                     </div>
 
-                    {/* Venue */}
+                    {/* Venues — Multi-select checkboxes */}
                     <div className="grid gap-2">
-                        <Label>Venue</Label>
-                        <Select value={venueId} onValueChange={setVenueId}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select venue" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {venues.map((v) => (
-                                    <SelectItem key={v.id} value={v.id}>
-                                        {v.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <Label className="flex items-center gap-1.5">
+                            <MapPin size={14} className="text-brand" />
+                            Venues
+                        </Label>
+                        <div className="rounded-lg border border-borderSoft bg-background/50 p-3 grid gap-2 max-h-44 overflow-y-auto">
+                            {venues.map(v => {
+                                const checked = selectedVenueIds.includes(v.id);
+                                return (
+                                    <label
+                                        key={v.id}
+                                        className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${checked ? 'bg-brand/10 border border-brand/20' : 'hover:bg-hoverSoft'
+                                            }`}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={() => toggleVenue(v.id)}
+                                            className="accent-brand h-4 w-4"
+                                        />
+                                        <span className="text-sm text-textPrimary flex-1">{v.name}</span>
+                                        {(v as any).category && (
+                                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
+                                                {(v as any).category}
+                                            </Badge>
+                                        )}
+                                    </label>
+                                );
+                            })}
+                        </div>
+                        <p className="text-xs text-textMuted">
+                            {selectedVenueIds.length} venue{selectedVenueIds.length !== 1 ? 's' : ''} selected
+                        </p>
                     </div>
 
                     {/* Start / End Time */}
@@ -333,7 +401,9 @@ const EditBookingDialog: React.FC<Props> = ({
                         ) : (
                             <Trash2 size={14} />
                         )}
-                        {confirmDelete ? 'Confirm Delete' : 'Delete Event'}
+                        {confirmDelete
+                            ? `Confirm Delete${booking && booking.ids.length > 1 ? ` (all ${booking.ids.length} venues)` : ''}`
+                            : 'Delete Event'}
                     </Button>
                     <div className="flex gap-2">
                         <Button
@@ -343,7 +413,7 @@ const EditBookingDialog: React.FC<Props> = ({
                         >
                             Cancel
                         </Button>
-                        <Button onClick={handleSave} disabled={saving || deleting}>
+                        <Button onClick={handleSave} disabled={saving || deleting || selectedVenueIds.length === 0}>
                             {saving && <Loader2 size={14} className="animate-spin mr-2" />}
                             Save Changes
                         </Button>

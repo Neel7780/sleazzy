@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { apiRequest, ApiBooking, mapBooking } from '../lib/api';
+import { apiRequest, ApiBooking, mapBooking, groupBookings } from '../lib/api';
 import { getErrorMessage } from '../lib/errors';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -10,6 +10,7 @@ import { Input } from '../components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { Button } from '../components/ui/button';
 import EditBookingDialog from '../components/EditBookingDialog';
+import { GroupedBooking } from '../types';
 
 type SortField = 'date' | 'eventName' | 'status';
 type SortDirection = 'asc' | 'desc';
@@ -21,7 +22,7 @@ const SORT_OPTIONS: { field: SortField; label: string }[] = [
 ];
 
 const MasterSchedule: React.FC = () => {
-    const [bookings, setBookings] = useState<any[]>([]);
+    const [bookings, setBookings] = useState<GroupedBooking[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [error, setError] = useState<string | null>(null);
@@ -37,7 +38,7 @@ const MasterSchedule: React.FC = () => {
         setError(null);
         try {
             const data = await apiRequest<ApiBooking[]>('/api/admin/bookings', { auth: true });
-            setBookings(data.map(mapBooking));
+            setBookings(groupBookings(data.map(mapBooking)));
         } catch (err) {
             console.error('Failed to fetch schedule:', err);
             setError(getErrorMessage(err, 'Failed to load schedule.'));
@@ -52,12 +53,14 @@ const MasterSchedule: React.FC = () => {
     }, [fetchBookings]);
 
     const venueNames = useMemo(() => {
-        const names = Array.from(new Set(bookings.map((b: any) => b.venueName as string)));
-        return names.sort();
+        // Since venueName can be compound (e.g., 'Venue A, Venue B'), we should split them to populate the filter dropdown properly.
+        const allNames = bookings.flatMap((b) => b.venueName ? b.venueName.split(', ') : []);
+        const uniqueNames = Array.from(new Set(allNames));
+        return uniqueNames.sort();
     }, [bookings]);
 
     const clubNames = useMemo(() => {
-        const names = Array.from(new Set(bookings.map((b: any) => b.clubName as string)));
+        const names = Array.from(new Set(bookings.map((b) => b.clubName as string)));
         return names.sort();
     }, [bookings]);
 
@@ -65,8 +68,10 @@ const MasterSchedule: React.FC = () => {
         const matchesSearch =
             b.eventName.toLowerCase().includes(search.toLowerCase()) ||
             b.clubName.toLowerCase().includes(search.toLowerCase()) ||
-            b.venueName.toLowerCase().includes(search.toLowerCase());
-        const matchesVenue = selectedVenue === 'all' || b.venueName === selectedVenue;
+            (b.venueName && b.venueName.toLowerCase().includes(search.toLowerCase()));
+
+        // For the venue filter, checking if the selected venue is included in the compound string
+        const matchesVenue = selectedVenue === 'all' || (b.venueName && b.venueName.includes(selectedVenue));
         const matchesClub = selectedClub === 'all' || b.clubName === selectedClub;
         return matchesSearch && matchesVenue && matchesClub;
     });
@@ -77,8 +82,8 @@ const MasterSchedule: React.FC = () => {
             if (sortField === 'date') {
                 cmp = new Date(a.date).getTime() - new Date(b.date).getTime();
             } else {
-                const aVal = (a[sortField] || '').toLowerCase();
-                const bVal = (b[sortField] || '').toLowerCase();
+                const aVal = (a[sortField] as string || '').toLowerCase();
+                const bVal = (b[sortField] as string || '').toLowerCase();
                 cmp = aVal.localeCompare(bVal);
             }
             return sortDirection === 'asc' ? cmp : -cmp;
@@ -111,22 +116,22 @@ const MasterSchedule: React.FC = () => {
             : <ArrowDown size={14} />;
     };
 
-    const toggleVisibility = async (bookingId: string, currentValue: boolean) => {
+    const toggleVisibility = async (groupBooking: GroupedBooking, currentValue: boolean) => {
         // Optimistic update
         setBookings(prev =>
-            prev.map(b => b.id === bookingId ? { ...b, isPublic: !currentValue } : b)
+            prev.map(b => b.batchId === groupBooking.batchId || b.ids[0] === groupBooking.ids[0] ? { ...b, isPublic: !currentValue } : b)
         );
         try {
-            await apiRequest(`/api/admin/bookings/${bookingId}/visibility`, {
+            await Promise.all(groupBooking.ids.map(id => apiRequest(`/api/admin/bookings/${id}/visibility`, {
                 method: 'PATCH',
                 auth: true,
                 body: { is_public: !currentValue },
-            });
+            })));
         } catch (err) {
             console.error('Failed to toggle visibility:', err);
             // Revert on failure
             setBookings(prev =>
-                prev.map(b => b.id === bookingId ? { ...b, isPublic: currentValue } : b)
+                prev.map(b => b.batchId === groupBooking.batchId || b.ids[0] === groupBooking.ids[0] ? { ...b, isPublic: currentValue } : b)
             );
         }
     };
@@ -264,7 +269,7 @@ const MasterSchedule: React.FC = () => {
                                                         <div className="font-semibold text-lg">{booking.eventName}</div>
                                                         <div className="flex items-center gap-2">
                                                             <button
-                                                                onClick={() => toggleVisibility(booking.id, booking.isPublic)}
+                                                                onClick={() => toggleVisibility(booking, booking.isPublic)}
                                                                 title={booking.isPublic ? 'Visible to public' : 'Hidden from public'}
                                                                 className={`
                                                                 p-1.5 rounded-lg transition-all duration-200 cursor-pointer

@@ -17,18 +17,50 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 
+// Narrow body-parser style errors that use `type` and `message` fields
+function isBodyParserError(err: unknown): err is { type: string; message?: string } {
+  return typeof err === 'object' && err !== null && 'type' in err;
+}
+
 // Catch body-parser errors (e.g., malformed JSON, encoding issues from Caddy proxy)
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (err instanceof SyntaxError && 'body' in err) {
+const bodyParserErrorHandler: express.ErrorRequestHandler = (err, req, res, next) => {
+  if (err instanceof SyntaxError && 'body' in (err as { body?: unknown })) {
     console.error('JSON Parse Error:', err.message);
     return res.status(400).json({ error: 'Invalid JSON payload. Please check the request body.' });
   }
-  if (err.type === 'entity.parse.failed' || err.type === 'entity.too.large' || err.type === 'request.size.invalid' || err.type === 'encoding.unsupported') {
+
+  if (isBodyParserError(err) &&
+    (err.type === 'entity.parse.failed' ||
+      err.type === 'entity.too.large' ||
+      err.type === 'request.size.invalid' ||
+      err.type === 'encoding.unsupported')) {
+
     console.error('Body Parser Error:', err.message);
-    return res.status(400).json({ error: 'Failed to process request body', details: err.message, type: err.type });
+
+    let status = 400;
+    if (err.type === 'entity.too.large' || err.type === 'request.size.invalid') {
+      status = 413; // Payload Too Large
+    } else if (err.type === 'encoding.unsupported') {
+      status = 415; // Unsupported Media Type
+    }
+
+    const responseBody: { error: string; details?: string; type?: string } = {
+      error: 'Failed to process request body',
+    };
+
+    // Only include detailed error information in non-production environments
+    if (process.env.NODE_ENV !== 'production') {
+      responseBody.details = err.message;
+      responseBody.type = err.type;
+    }
+
+    return res.status(status).json(responseBody);
   }
-  next();
-});
+
+  next(err);
+};
+
+app.use(bodyParserErrorHandler);
 
 app.use((req, _res, next) => {
   req.app.locals.supabase = supabase;

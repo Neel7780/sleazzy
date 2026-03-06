@@ -5,7 +5,7 @@ import { CheckCircle, XCircle, ChevronRight, AlertCircle, Calendar as CalendarIc
 import { apiRequest, mapBooking, type ApiBooking, type ApiVenue } from '../lib/api';
 import { getErrorMessage } from '../lib/errors';
 import { toastError, toastSuccess } from '../lib/toast';
-import { Booking } from '../types';
+import { Booking, GroupedBooking } from '../types';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -13,10 +13,10 @@ import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { Skeleton } from '../components/ui/skeleton';
 import { Calendar, type CalendarEvent } from '../components/ui/calendar';
 import AddBookingDialog from '../components/AddBookingDialog';
-
+import { groupBookings } from '../lib/api';
 
 const AdminDashboard: React.FC = () => {
-  const [pendingRequests, setPendingRequests] = React.useState<Booking[]>([]);
+  const [pendingRequests, setPendingRequests] = React.useState<GroupedBooking[]>([]);
   const [venues, setVenues] = React.useState<ApiVenue[]>([]);
   const [stats, setStats] = React.useState({
     pending: 0,
@@ -26,27 +26,26 @@ const AdminDashboard: React.FC = () => {
   });
   const [isLoading, setIsLoading] = React.useState(true);
 
-  const [calendarEvents, setCalendarEvents] = React.useState<Booking[]>([]);
+  const [calendarEvents, setCalendarEvents] = React.useState<GroupedBooking[]>([]);
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date());
   const [error, setError] = React.useState<string | null>(null);
   const [addDialogOpen, setAddDialogOpen] = React.useState(false);
 
   const getVenueName = (id: string) => venues.find(v => v.id === id)?.name || id;
 
-  // generate a CSV export of all bookings visible to admin
   const exportAllEvents = React.useCallback(() => {
     if (calendarEvents.length === 0) {
       toastError('No events to export');
       return;
     }
-    const headers = ['Event Name','Club Name','Date','Start Time','End Time','Venue','Status'];
+    const headers = ['Event Name', 'Club Name', 'Date', 'Start Time', 'End Time', 'Venue', 'Status'];
     const rows = calendarEvents.map(e => [
       e.eventName,
       e.clubName,
       new Date(e.date).toLocaleDateString(),
       e.startTime,
       e.endTime,
-      getVenueName(e.venueId),
+      e.venueName || e.venueIds.map(getVenueName).join(', '),
       e.status,
     ]);
     const csvContent = [headers, ...rows]
@@ -56,7 +55,7 @@ const AdminDashboard: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `all-events-${new Date().toISOString().slice(0,10)}.csv`);
+    link.setAttribute('download', `all-events-${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -74,9 +73,9 @@ const AdminDashboard: React.FC = () => {
       ]);
 
       setVenues(venuesData);
-      setPendingRequests(pendingData.map(mapBooking));
+      setPendingRequests(groupBookings(pendingData.map(mapBooking)));
       setStats(statsData);
-      setCalendarEvents(allBookingsData.map(mapBooking));
+      setCalendarEvents(groupBookings(allBookingsData.map(mapBooking)));
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
       setError(getErrorMessage(err, 'Failed to load dashboard.'));
@@ -92,18 +91,18 @@ const AdminDashboard: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
-  const handleAction = async (bookingId: string, status: 'approved' | 'rejected') => {
+  const handleAction = async (bookingIds: string[], status: 'approved' | 'rejected') => {
     try {
-      await apiRequest(`/api/admin/bookings/${bookingId}/status`, {
+      await Promise.all(bookingIds.map(id => apiRequest(`/api/admin/bookings/${id}/status`, {
         method: 'PATCH',
         auth: true,
         body: { status }
-      });
-      toastSuccess(`Booking ${status} successfully`);
+      })));
+      toastSuccess(`Booking(s) ${status} successfully`);
       fetchData();
     } catch (err) {
-      console.error(`Failed to ${status} booking:`, err);
-      toastError(err, `Failed to ${status} booking. Please try again.`);
+      console.error(`Failed to ${status} booking(s):`, err);
+      toastError(err, `Failed to ${status} booking(s). Please try again.`);
     }
   };
 
@@ -121,7 +120,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   const eventDates = calendarEvents
-    .filter(e => e.status === 'approved') // Only highlight confirmed events? Or all? Let's highlight Approved for clarity.
+    .filter(e => e.status === 'approved')
     .map(e => new Date(e.date));
 
   const selectedDateEvents = selectedDate ? getEventsForDate(selectedDate) : [];
@@ -133,7 +132,7 @@ const AdminDashboard: React.FC = () => {
       date: e.date,
       startTime: e.startTime,
       endTime: e.endTime,
-      venueName: getVenueName(e.venueId),
+      venueName: e.venueName || e.venueIds.map(getVenueName).join(', '),
       status: e.status,
     })),
     [calendarEvents, venues]
@@ -284,18 +283,22 @@ const AdminDashboard: React.FC = () => {
           transition={{ duration: 0.5, delay: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
           whileHover={{ y: -4 }}
         >
-          <Card className="rounded-2xl hover:border-success/50 transition-all duration-300 shadow-lg shadow-success/10 glass-card border-success/30 bg-gradient-to-br from-success/5 to-transparent">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-xs font-bold text-textMuted uppercase tracking-widest">Active Clubs</div>
-                <div className="p-3 bg-success/20 text-success rounded-xl border border-success/30 shadow-lg">
-                  <CheckCircle size={20} />
+          <Link to="/admin/clubs" className="block outline-none focus-visible:ring-2 focus-visible:ring-success rounded-2xl group">
+            <Card className="rounded-2xl group-hover:border-success/50 transition-all duration-300 shadow-lg shadow-success/10 glass-card border-success/30 bg-gradient-to-br from-success/5 to-transparent">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-xs font-bold text-textMuted uppercase tracking-widest">Active Clubs</div>
+                  <div className="p-3 bg-success/20 text-success rounded-xl border border-success/30 shadow-lg">
+                    <CheckCircle size={20} />
+                  </div>
                 </div>
-              </div>
-              <div className="text-4xl sm:text-5xl font-extrabold text-success tracking-tight">{stats.activeClubs}</div>
-              <p className="text-xs text-textMuted mt-2">Organizations</p>
-            </CardContent>
-          </Card>
+                <div className="text-4xl sm:text-5xl font-extrabold text-success tracking-tight">{stats.activeClubs}</div>
+                <p className="text-xs text-textMuted mt-2 flex items-center gap-1 group-hover:text-success transition-colors">
+                  Manage Organizations <ChevronRight size={14} />
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
         </motion.div>
       </div>
 
@@ -339,7 +342,7 @@ const AdminDashboard: React.FC = () => {
                   {selectedDateEvents.length > 0 ? (
                     selectedDateEvents.map((event, index) => (
                       <motion.div
-                        key={event.id}
+                        key={event.batchId || event.ids[0]}
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 0.2, delay: index * 0.05 }}
@@ -357,7 +360,7 @@ const AdminDashboard: React.FC = () => {
                               {event.startTime} - {event.endTime}
                             </div>
                             <div className="mt-1 text-xs text-textMuted">
-                              {getVenueName(event.venueId)}
+                              {event.venueName}
                             </div>
                           </CardContent>
                         </Card>
@@ -419,7 +422,7 @@ const AdminDashboard: React.FC = () => {
                   <tbody className="divide-y divide-border/40">
                     {calendarEvents.map((evt, index) => (
                       <motion.tr
-                        key={evt.id}
+                        key={evt.batchId || evt.ids[0]}
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.3, delay: index * 0.05 }}
@@ -432,12 +435,12 @@ const AdminDashboard: React.FC = () => {
                             <div className="flex items-center gap-1">
                               <CalendarIcon size={12} /> {evt.startTime} - {evt.endTime}
                             </div>
-                            <div>{getVenueName(evt.venueId)}</div>
+                            <div>{evt.venueName}</div>
                           </div>
                         </td>
                         <td className="px-4 sm:px-6 py-4 hidden sm:table-cell">
                           <div className="flex items-center gap-1.5 text-textPrimary">
-                            {getVenueName(evt.venueId)}
+                            {evt.venueName}
                           </div>
                           <div className="text-xs text-textMuted mt-0.5 flex items-center gap-1">
                             <CalendarIcon size={12} /> {evt.startTime} - {evt.endTime}
@@ -450,11 +453,11 @@ const AdminDashboard: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-4 sm:px-6 py-4">
-                          <Badge 
+                          <Badge
                             variant={
-                              evt.status === 'approved' ? 'success' : 
-                              evt.status === 'rejected' ? 'destructive' : 
-                              'pending'
+                              evt.status === 'approved' ? 'success' :
+                                evt.status === 'rejected' ? 'destructive' :
+                                  'pending'
                             }
                           >
                             {evt.status.charAt(0).toUpperCase() + evt.status.slice(1)}
@@ -521,7 +524,7 @@ const AdminDashboard: React.FC = () => {
                         </div>
                         <h4 className="text-base sm:text-lg font-medium text-foreground">{req.eventName}</h4>
                         <div className="mt-1 text-sm text-textMuted">
-                          Requested Venue: <span className="font-semibold text-foreground">{getVenueName(req.venueId)}</span> ({req.startTime} - {req.endTime})
+                          Requested Venue(s): <span className="font-semibold text-foreground">{req.venueName || req.venueIds.map(getVenueName).join(', ')}</span> ({req.startTime} - {req.endTime})
                         </div>
                       </div>
 
@@ -530,7 +533,7 @@ const AdminDashboard: React.FC = () => {
                           variant="destructive"
                           size="sm"
                           className="flex items-center gap-2"
-                          onClick={() => handleAction(req.id, 'rejected')}
+                          onClick={() => handleAction(req.ids, 'rejected')}
                         >
                           <XCircle size={16} />
                           <span className="hidden sm:inline">Reject</span>
@@ -538,7 +541,7 @@ const AdminDashboard: React.FC = () => {
                         <Button
                           size="sm"
                           className="flex items-center gap-2"
-                          onClick={() => handleAction(req.id, 'approved')}
+                          onClick={() => handleAction(req.ids, 'approved')}
                         >
                           <CheckCircle size={16} />
                           <span className="hidden sm:inline">Approve</span>

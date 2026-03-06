@@ -137,7 +137,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
           {/* Form */}
           <GlassCardContent className="p-6 sm:p-8 space-y-6">
-            <motion.h2 
+            <motion.h2
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.2 }}
@@ -173,7 +173,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                           <FormControl>
                             <div className="relative">
                               <select
-                                className="flex h-10 w-full rounded-lg border border-borderSoft bg-white px-3 py-2 text-sm text-textPrimary placeholder:text-textMuted focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+                                className="flex h-10 w-full rounded-lg border border-borderSoft bg-transparent px-3 py-2 text-sm text-textPrimary placeholder:text-textMuted focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:cursor-not-allowed disabled:opacity-50 appearance-none [&>option]:bg-popover"
                                 {...field}
                               >
                                 <option value="A">Group A (Academic/Tech)</option>

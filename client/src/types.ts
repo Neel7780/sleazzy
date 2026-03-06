@@ -39,4 +39,12 @@ export interface Booking {
   eventType?: EventType;
   expectedAttendees?: number;
   batchId?: string;
+  clubId?: string;
+  isPublic: boolean;
+}
+
+export interface GroupedBooking extends Omit<Booking, 'id' | 'venueId'> {
+  ids: string[];
+  venueIds: string[];
+  venueName?: string; // Comma-separated or compound string
 }
