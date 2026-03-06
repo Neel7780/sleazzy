@@ -230,5 +230,38 @@ export const mapBooking = (booking: ApiBooking) => {
     expectedAttendees: booking.expected_attendees,
     batchId: booking.batch_id,
     isPublic: booking.is_public ?? false,
+    clubId: booking.club_id,
   };
+};
+
+import { Booking, GroupedBooking } from '../types';
+
+export const groupBookings = (bookings: Booking[]): GroupedBooking[] => {
+  const grouped = new Map<string, GroupedBooking>();
+
+  for (const b of bookings) {
+    const key = b.batchId || b.id; // Fallback to id if no batchId
+
+    if (grouped.has(key)) {
+      const existing = grouped.get(key)!;
+      existing.ids.push(b.id);
+      existing.venueIds.push(b.venueId);
+
+      // Prevent duplicate venue names if the same venue was booked multiple times in a single batch (shouldn't happen, but good safeguard)
+      const existingNames = existing.venueName?.split(', ') || [];
+      const newName = (b as any).venueName || b.venueId;
+      if (!existingNames.includes(newName)) {
+        existing.venueName = existing.venueName ? `${existing.venueName}, ${newName}` : newName;
+      }
+    } else {
+      grouped.set(key, {
+        ...b,
+        ids: [b.id],
+        venueIds: [b.venueId],
+        venueName: (b as any).venueName || b.venueId,
+      });
+    }
+  }
+
+  return Array.from(grouped.values());
 };

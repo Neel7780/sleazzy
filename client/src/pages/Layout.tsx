@@ -13,6 +13,7 @@ import {
   LogOut,
   ClipboardList,
   Layers,
+  Users,
 } from 'lucide-react';
 import { User } from '../types';
 import { Button } from '../components/ui/button';
@@ -89,6 +90,10 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
           <NavLink to="/admin/schedule" className={navClass}>
             <Layers size={20} />
             <span>Master Schedule</span>
+          </NavLink>
+          <NavLink to="/admin/clubs" className={navClass}>
+            <Users size={20} />
+            <span>Manage Clubs</span>
           </NavLink>
         </>
       );

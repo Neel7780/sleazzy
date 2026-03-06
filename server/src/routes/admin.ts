@@ -277,4 +277,108 @@ router.get('/stats', async (_req, res) => {
   }
 });
 
+router.get('/clubs', async (_req, res) => {
+  const { data, error } = await supabase
+    .from('clubs')
+    .select('*')
+    .order('name', { ascending: true });
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
+  return res.json(data || []);
+});
+
+router.patch('/clubs/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, group_category } = req.body;
+
+  const updateFields: Record<string, any> = {};
+  if (name !== undefined) updateFields.name = name;
+  if (group_category !== undefined) updateFields.group_category = group_category;
+
+  if (Object.keys(updateFields).length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+
+  const { data, error } = await supabase
+    .from('clubs')
+    .update(updateFields)
+    .eq('id', id)
+    .select('*')
+    .single();
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
+  return res.json(data);
+});
+
+router.delete('/clubs/:id', async (req, res) => {
+  const { id } = req.params;
+
+  // First, verify the club exists
+  const { data: club, error: fetchError } = await supabase
+    .from('clubs')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (fetchError || !club) {
+    return res.status(404).json({ error: 'Club not found' });
+  }
+
+  // Delete all bookings for this club
+  const { error: bookingsError } = await supabase
+    .from('bookings')
+    .delete()
+    .eq('club_id', id);
+
+  if (bookingsError) {
+    return res.status(500).json({ error: 'Failed to delete club bookings: ' + bookingsError.message });
+  }
+
+  // Delete the club profile
+  const { error: clubError } = await supabase
+    .from('clubs')
+    .delete()
+    .eq('id', id);
+
+  if (clubError) {
+    return res.status(500).json({ error: 'Failed to delete club: ' + clubError.message });
+  }
+
+  // Also try to delete auth user associated. We can lookup profile by email.
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('email', club.email)
+    .single();
+
+  if (profile) {
+    // Delete profile
+    await supabase.from('profiles').delete().eq('id', profile.id);
+    // Delete auth user if possible using service role
+    await supabase.auth.admin.deleteUser(profile.id);
+  }
+
+  return res.json({ success: true });
+});
+
+router.get('/clubs/:id/bookings', async (req, res) => {
+  const { id } = req.params;
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*, clubs(name), venues(name)')
+    .eq('club_id', id)
+    .order('start_time', { ascending: false });
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+  return res.json(data || []);
+});
+
 export default router;

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle, XCircle, Search, Filter, Clock, Calendar, Check, X, AlertTriangle, RefreshCw } from 'lucide-react';
-import { apiRequest, mapBooking, type ApiBooking, type ApiVenue } from '../lib/api';
+import { apiRequest, mapBooking, groupBookings, type ApiBooking, type ApiVenue } from '../lib/api';
 import { getErrorMessage } from '../lib/errors';
 import { toastError, toastSuccess } from '../lib/toast';
-import { Booking } from '../types';
+import { GroupedBooking } from '../types';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -15,7 +15,7 @@ import { Skeleton } from '../components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 const AdminRequests: React.FC = () => {
-  const [requests, setRequests] = useState<Booking[]>([]);
+  const [requests, setRequests] = useState<GroupedBooking[]>([]);
   const [venues, setVenues] = useState<ApiVenue[]>([]);
   const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
@@ -31,7 +31,7 @@ const AdminRequests: React.FC = () => {
         apiRequest<ApiBooking[]>('/api/admin/bookings', { auth: true }),
       ]);
       setVenues(venuesData);
-      setRequests(bookingsData.map(mapBooking));
+      setRequests(groupBookings(bookingsData.map(mapBooking)));
     } catch (err) {
       console.error('Failed to fetch requests:', err);
       setError(getErrorMessage(err, 'Failed to load requests.'));
@@ -45,30 +45,30 @@ const AdminRequests: React.FC = () => {
     fetchRequests();
   }, [fetchRequests]);
 
-  const handleAction = async (id: string, action: 'approved' | 'rejected') => {
+  const handleAction = async (ids: string[], action: 'approved' | 'rejected') => {
     try {
-      await apiRequest(`/api/admin/bookings/${id}/status`, {
+      await Promise.all(ids.map(id => apiRequest(`/api/admin/bookings/${id}/status`, {
         method: 'PATCH',
         auth: true,
         body: { status: action, adminNote: '' },
-      });
-      toastSuccess(`Request ${action === 'approved' ? 'approved' : 'rejected'} successfully`);
+      })));
+      toastSuccess(`Request(s) ${action === 'approved' ? 'approved' : 'rejected'} successfully`);
       const bookingsData = await apiRequest<ApiBooking[]>('/api/admin/bookings', { auth: true });
-      setRequests(bookingsData.map(mapBooking));
+      setRequests(groupBookings(bookingsData.map(mapBooking)));
     } catch (err) {
-      console.error('Failed to update request:', err);
-      toastError(err, `Failed to ${action} request. Please try again.`);
+      console.error('Failed to update request(s):', err);
+      toastError(err, `Failed to ${action} request(s). Please try again.`);
     }
   };
 
   const getVenueName = (id: string) => venues.find(v => v.id === id)?.name || id;
 
   const filteredRequests = requests.filter(req => {
-    const matchesTab = activeTab === 'pending' 
-      ? req.status === 'pending' 
+    const matchesTab = activeTab === 'pending'
+      ? req.status === 'pending'
       : req.status !== 'pending';
-    
-    const matchesSearch = 
+
+    const matchesSearch =
       req.clubName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       req.eventName.toLowerCase().includes(searchTerm.toLowerCase());
 
@@ -76,7 +76,7 @@ const AdminRequests: React.FC = () => {
   });
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4 }}
@@ -87,13 +87,13 @@ const AdminRequests: React.FC = () => {
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-textPrimary tracking-tight">Request Management</h2>
           <p className="text-textMuted mt-2 text-sm sm:text-base font-medium">Review and take action on venue booking requests.</p>
         </div>
-        
+
         {/* Search */}
         <div className="relative w-full sm:w-64 shrink-0">
           <Search className="absolute left-3 top-2.5 text-textMuted pointer-events-none" size={18} />
-          <Input 
-            type="text" 
-            placeholder="Search requests..." 
+          <Input
+            type="text"
+            placeholder="Search requests..."
             className="pl-10 w-full rounded-xl"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -146,7 +146,7 @@ const AdminRequests: React.FC = () => {
                   <tbody className="divide-y divide-border/40">
                     {filteredRequests.map((req, index) => (
                       <motion.tr
-                        key={req.id}
+                        key={req.batchId || req.ids[0]}
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.3, delay: index * 0.05 }}
@@ -159,12 +159,12 @@ const AdminRequests: React.FC = () => {
                             <div className="flex items-center gap-1">
                               <Clock size={12} /> {req.startTime} - {req.endTime}
                             </div>
-                            <div>{getVenueName(req.venueId)}</div>
+                            <div>{req.venueName || req.venueIds.map(getVenueName).join(', ')}</div>
                           </div>
                         </td>
                         <td className="px-4 sm:px-6 py-4 hidden sm:table-cell">
                           <div className="flex items-center gap-1.5 text-textPrimary">
-                            {getVenueName(req.venueId)}
+                            {req.venueName || req.venueIds.map(getVenueName).join(', ')}
                           </div>
                           <div className="text-xs text-textMuted mt-0.5 flex items-center gap-1">
                             <Clock size={12} /> {req.startTime} - {req.endTime}
@@ -177,11 +177,11 @@ const AdminRequests: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-4 sm:px-6 py-4">
-                          <Badge 
+                          <Badge
                             variant={
-                              req.status === 'approved' ? 'success' : 
-                              req.status === 'rejected' ? 'destructive' : 
-                              'pending'
+                              req.status === 'approved' ? 'success' :
+                                req.status === 'rejected' ? 'destructive' :
+                                  'pending'
                             }
                           >
                             {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
@@ -190,19 +190,19 @@ const AdminRequests: React.FC = () => {
                         <td className="px-4 sm:px-6 py-4 text-right">
                           {req.status === 'pending' ? (
                             <div className="flex items-center justify-end gap-2">
-                              <Button 
+                              <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleAction(req.id, 'rejected')}
+                                onClick={() => handleAction(req.ids, 'rejected')}
                                 className="text-textMuted hover:text-error"
                                 title="Reject"
                               >
                                 <X size={18} />
                               </Button>
-                              <Button 
+                              <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleAction(req.id, 'approved')}
+                                onClick={() => handleAction(req.ids, 'approved')}
                                 className="text-primary hover:text-primary/80"
                                 title="Approve"
                               >

@@ -6,7 +6,6 @@ import authMiddleware from '../middleware/auth';
 const router = express.Router();
 
 // Public Routes
-
 router.post('/register', async (req, res) => {
     const { email, password, clubName, groupCategory, userId: providedUserId } = req.body;
 

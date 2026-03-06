@@ -342,7 +342,28 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
       });
 
       toastSuccess('Booking request submitted successfully!');
-      // Optional: Redirect or clear form
+
+      // Clear the form
+      setFormData({
+        eventName: '',
+        eventType: 'closed_club',
+        expectedAttendees: '',
+        clubName: currentUser.role === 'club' ? currentUser.name : '',
+        date: '',
+        startTime: '',
+        endTime: '',
+        venueIds: []
+      });
+      setSelectedDate(undefined);
+      setWarnings({
+        timeline: '',
+        conflict: '',
+        venue: '',
+        venueType: '',
+        hours: '',
+        coCurricularLimit: ''
+      });
+
     } catch (error) {
       console.error('Failed to submit booking:', error);
       toastError(error, 'Failed to submit booking. Please try again.');
@@ -456,8 +477,8 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
                   </div>
                   {warnings.coCurricularLimit && (
                     <div className={`p-4 rounded-xl border shadow-sm hover:shadow-md transition-all backdrop-blur-sm ${warnings.coCurricularLimit.startsWith('This club has already')
-                        ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 hover:border-red-300'
-                        : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 hover:border-amber-300'
+                      ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 hover:border-red-300'
+                      : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 hover:border-amber-300'
                       }`}>
                       <div className="flex items-start gap-3">
                         <div className={`h-2 w-2 rounded-full mt-2 shrink-0 ${warnings.coCurricularLimit.startsWith('This club has already') ? 'bg-red-500' : 'bg-amber-500'

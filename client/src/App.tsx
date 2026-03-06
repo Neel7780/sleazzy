@@ -5,6 +5,7 @@ import Layout from './pages/Layout';
 import ClubDashboard from './lib/ClubDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import BookSlot from './pages/BookSlot';
+import AdminClubs from './pages/AdminClubs';
 import AdminRequests from './pages/AdminRequests';
 import MasterSchedule from './pages/MasterSchedule';
 import PolicyPage from './pages/PolicyPage';
@@ -198,6 +199,7 @@ const App: React.FC = () => {
 
             <Route path="/admin/requests" element={<AdminRequests />} />
             <Route path="/admin/schedule" element={<MasterSchedule />} />
+            <Route path="/admin/clubs" element={<AdminClubs />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

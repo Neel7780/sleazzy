@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, Clock, MapPin, Upload, FileText, AlertTriangle, RefreshCw } from 'lucide-react';
-import { apiRequest, mapBooking, type ApiBooking, type ApiVenue } from '../lib/api';
+import { apiRequest, mapBooking, groupBookings, type ApiBooking, type ApiVenue } from '../lib/api';
 import { toastInfo, toastError } from '../lib/toast';
 import { getErrorMessage } from '../lib/errors';
 import { Booking } from '../types';
@@ -44,28 +44,8 @@ const MyBookings: React.FC = () => {
   const getVenueName = (id: string) => venues.find(v => v.id === id)?.name || id;
 
   const groupedBookings = React.useMemo(() => {
-    const groups: Record<string, Booking & { venueNames: string[] }> = {};
-
-    myBookings.forEach(booking => {
-      // Group by batchId if available, otherwise by event details
-      const key = booking.batchId || `${booking.eventName}-${booking.date}-${booking.startTime}-${booking.endTime}`;
-
-      const vName = getVenueName(booking.venueId);
-
-      if (!groups[key]) {
-        groups[key] = {
-          ...booking,
-          venueNames: [vName]
-        };
-      } else {
-        if (!groups[key].venueNames.includes(vName)) {
-          groups[key].venueNames.push(vName);
-        }
-      }
-    });
-
-    return Object.values(groups);
-  }, [myBookings, venues]);
+    return groupBookings(myBookings);
+  }, [myBookings]);
 
   const isPastEvent = (dateStr: string) => {
     const eventDate = new Date(dateStr);
@@ -120,7 +100,7 @@ const MyBookings: React.FC = () => {
           </Button>
         </Alert>
       )}
-      
+
       {isLoading ? (
         <div className="grid gap-6">
           {[1, 2, 3].map((i) => (
@@ -196,7 +176,7 @@ const MyBookings: React.FC = () => {
                                 isPast ? "text-textMuted/60" : "text-textSecondary"
                               )}>
                                 <MapPin size={18} className="shrink-0 text-brand" />
-                                <span>{booking.venueNames.join(', ')}</span>
+                                <span>{booking.venueName || booking.venueIds.map(getVenueName).join(', ')}</span>
                               </span>
                             </div>
                           </div>
@@ -207,12 +187,12 @@ const MyBookings: React.FC = () => {
                               className={cn(
                                 "px-4 py-2 font-bold text-sm rounded-full border-2",
                                 booking.status === 'approved'
-                                  ? isPast 
-                                    ? 'bg-success/10 text-success border-success/30 shadow-lg shadow-success/20' 
+                                  ? isPast
+                                    ? 'bg-success/10 text-success border-success/30 shadow-lg shadow-success/20'
                                     : 'bg-brand/10 text-brand border-brand/30 shadow-lg shadow-brand/20'
                                   : booking.status === 'pending'
-                                  ? 'bg-warning/10 text-warning border-warning/30 shadow-lg shadow-warning/20'
-                                  : 'bg-error/10 text-error border-error/30'
+                                    ? 'bg-warning/10 text-warning border-warning/30 shadow-lg shadow-warning/20'
+                                    : 'bg-error/10 text-error border-error/30'
                               )}
                             >
                               {isPast ? '✓ Completed' : booking.status === 'pending' ? '⏳ Pending' : '✓ ' + booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
