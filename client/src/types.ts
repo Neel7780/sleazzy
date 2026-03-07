@@ -33,6 +33,7 @@ export interface Booking {
   venueId: string;
   clubName: string;
   date: string; // ISO Date string
+  endDate?: string; // ISO Date string
   startTime: string;
   endTime: string;
   status: BookingStatus;

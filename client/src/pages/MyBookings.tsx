@@ -156,7 +156,16 @@ const MyBookings: React.FC = () => {
                             <h3 className={cn("text-2xl font-bold mb-3", isPast ? 'text-textMuted' : 'text-textPrimary')}>{booking.eventName}</h3>
                             <div className="flex items-center gap-2 text-sm mb-4 font-medium text-textSecondary">
                               <Clock size={16} className="text-brand" />
-                              <span>{booking.startTime} – {booking.endTime}</span>
+                              <span>
+                                {booking.endDate && new Date(booking.date).toDateString() !== new Date(booking.endDate).toDateString() ? (
+                                  <>
+                                    {new Date(booking.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, {booking.startTime} –{' '}
+                                    {new Date(booking.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, {booking.endTime}
+                                  </>
+                                ) : (
+                                  `${booking.startTime} – ${booking.endTime}`
+                                )}
+                              </span>
                             </div>
 
                             <div className="space-y-3 mt-4">

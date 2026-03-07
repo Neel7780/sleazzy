@@ -265,9 +265,19 @@ const AdminRequestRow: React.FC<AdminRequestRowProps> = ({ req, index, venues, h
           </div>
         </td>
         <td className="px-4 sm:px-6 py-4">
-          <div className="flex items-center gap-1.5">
-            <Calendar size={14} className="text-textMuted" />
-            {new Date(req.date).toLocaleDateString()}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5">
+              <Calendar size={14} className="text-textMuted shrink-0" />
+              {req.endDate && new Date(req.date).toDateString() !== new Date(req.endDate).toDateString() ? (
+                <div className="flex flex-col text-xs space-y-0.5">
+                  <span className="whitespace-nowrap">{new Date(req.date).toLocaleDateString()} {req.startTime}</span>
+                  <span className="text-textMuted text-[10px]">to</span>
+                  <span className="whitespace-nowrap">{new Date(req.endDate).toLocaleDateString()} {req.endTime}</span>
+                </div>
+              ) : (
+                <span>{new Date(req.date).toLocaleDateString()}</span>
+              )}
+            </div>
           </div>
         </td>
         <td className="px-4 sm:px-6 py-4">

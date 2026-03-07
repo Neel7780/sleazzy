@@ -102,16 +102,16 @@ const MasterSchedule: React.FC = () => {
 
     const sortedBookings = useMemo(() => {
         return [...filteredBookings].sort((a, b) => {
-                    let cmp = 0;
-                    if (sortField === 'date') {
-                        cmp = new Date(a.date).getTime() - new Date(b.date).getTime();
-                    } else {
-                        const aVal = (a[sortField] as string || '').toLowerCase();
-                        const bVal = (b[sortField] as string || '').toLowerCase();
-                        cmp = aVal.localeCompare(bVal);
-                    }
-                    return sortDirection === 'asc' ? cmp : -cmp;
-                });
+            let cmp = 0;
+            if (sortField === 'date') {
+                cmp = new Date(a.date).getTime() - new Date(b.date).getTime();
+            } else {
+                const aVal = (a[sortField] as string || '').toLowerCase();
+                const bVal = (b[sortField] as string || '').toLowerCase();
+                cmp = aVal.localeCompare(bVal);
+            }
+            return sortDirection === 'asc' ? cmp : -cmp;
+        });
     }, [filteredBookings, sortField, sortDirection]);
 
     const handleSortClick = (field: SortField) => {
@@ -281,18 +281,22 @@ const MasterSchedule: React.FC = () => {
                                                         </div>
                                                     </div>
 
-                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm text-textMuted">
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-textMuted">
                                                         <div className="flex items-center gap-2">
                                                             <MapPin size={14} />
                                                             <span>{booking.venueName}</span>
                                                         </div>
                                                         <div className="flex items-center gap-2">
                                                             <Calendar size={14} />
-                                                            <span>{new Date(booking.date).toLocaleDateString()}</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <Clock size={14} />
-                                                            <span>{booking.startTime} - {booking.endTime}</span>
+                                                            <span>
+                                                                {booking.endDate && new Date(booking.date).toDateString() !== new Date(booking.endDate).toDateString() ? (
+                                                                    <>
+                                                                        {new Date(booking.date).toLocaleDateString()} {booking.startTime} - {new Date(booking.endDate).toLocaleDateString()} {booking.endTime}
+                                                                    </>
+                                                                ) : (
+                                                                    <>{new Date(booking.date).toLocaleDateString()} | {booking.startTime} - {booking.endTime}</>
+                                                                )}
+                                                            </span>
                                                         </div>
                                                     </div>
 

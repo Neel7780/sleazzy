@@ -223,6 +223,7 @@ export const mapBooking = (booking: ApiBooking) => {
     venueName: booking.venues?.name || booking.venue_id,
     clubName: booking.clubs?.name || booking.club_id,
     date: start.toISOString(),
+    endDate: end.toISOString(),
     startTime: start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
     endTime: end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
     startTimeISO: booking.start_time,
