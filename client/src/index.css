@@ -115,8 +115,14 @@
     border-color: var(--borderSoft);
   }
 
+  ::-webkit-scrollbar {
+    display: none;
+  }
+
   html {
     scroll-behavior: smooth;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
 
   body {
