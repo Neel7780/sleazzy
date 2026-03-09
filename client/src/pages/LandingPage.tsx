@@ -12,7 +12,7 @@ import {
     X,
 } from 'lucide-react';
 import { apiRequest, type ApiBooking, type ApiVenue, mapBooking, groupBookings } from '../lib/api';
-import { getSocket } from '../lib/socket';
+import { getSocket, SOCKET_EVENTS } from '../lib/socket';
 
 import { ThemeToggle } from '../components/theme-toggle';
 import { Button } from '../components/ui/button';
@@ -180,22 +180,22 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGoToLogin }) => {
             fetchEvents();
         };
 
-        socket.on('events:updated', handleRefresh);
-        socket.on('booking:status_changed', handleRefresh);
-        socket.on('booking:new', handleRefresh);
+        socket.on(SOCKET_EVENTS.EVENTS_UPDATED, handleRefresh);
+        socket.on(SOCKET_EVENTS.BOOKING_STATUS_CHANGED, handleRefresh);
+        socket.on(SOCKET_EVENTS.BOOKING_NEW, handleRefresh);
 
         return () => {
-            socket.off('events:updated', handleRefresh);
-            socket.off('booking:status_changed', handleRefresh);
-            socket.off('booking:new', handleRefresh);
+            socket.off(SOCKET_EVENTS.EVENTS_UPDATED, handleRefresh);
+            socket.off(SOCKET_EVENTS.BOOKING_STATUS_CHANGED, handleRefresh);
+            socket.off(SOCKET_EVENTS.BOOKING_NEW, handleRefresh);
         };
     }, [fetchEvents]);
 
     // Real-time: refresh when admin approves a booking (makes it public)
     useEffect(() => {
         const socket = getSocket();
-        socket.on('events:updated', fetchEvents);
-        return () => { socket.off('events:updated', fetchEvents); };
+        socket.on(SOCKET_EVENTS.EVENTS_UPDATED, fetchEvents);
+        return () => { socket.off(SOCKET_EVENTS.EVENTS_UPDATED, fetchEvents); };
     }, [fetchEvents]);
 
     // Build calendar grid

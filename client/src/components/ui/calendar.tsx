@@ -324,7 +324,7 @@ function EventHoverCard({
     const el = containerRef.current
     if (!el) return
 
-// sourcery skip: avoid-function-declarations-in-blocks
+    // sourcery skip: avoid-function-declarations-in-blocks
     function onMove(e: PointerEvent) {
       const hit = (e.target as HTMLElement).closest("[data-date-key]") as HTMLElement | null
 

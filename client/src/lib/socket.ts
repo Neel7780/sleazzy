@@ -1,39 +1,73 @@
-import { io, type Socket } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
+import { SOCKET_EVENTS } from './socketEvents';
 
-const getSocketUrl = (): string => {
-    const configured = import.meta.env.VITE_API_URL as string | undefined;
-    if (configured) return configured.replace(/\/$/, '');
-    if (typeof window !== 'undefined') return window.location.origin;
-    return 'http://localhost:4000';
-};
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
-// Singleton socket connection – shared across the entire client app
-let socket: Socket | null = null;
+class SocketService {
+    private socket: Socket | null = null;
+    private connectionPromise: Promise<void> | null = null;
+    private reconnectAttempts = 0;
+    private maxReconnectAttempts = 5;
 
-export const getSocket = (): Socket => {
-    if (!socket) {
-        socket = io(getSocketUrl(), {
-            reconnectionAttempts: 5,
-            reconnectionDelay: 2000,
-            transports: ['websocket', 'polling'],
+    connect() {
+        if (this.socket?.connected) return Promise.resolve();
+        if (this.connectionPromise) return this.connectionPromise;
+
+        this.connectionPromise = new Promise((resolve, reject) => {
+            this.socket = io(SOCKET_URL, {
+                reconnectionAttempts: this.maxReconnectAttempts,
+                timeout: 10000,
+            });
+
+            this.socket.on('connect', () => {
+                console.log('[Socket.io] Connected');
+                this.reconnectAttempts = 0;
+                resolve();
+            });
+
+            this.socket.on('connect_error', (error) => {
+                console.warn('[Socket.io] Connection error:', error.message);
+                this.reconnectAttempts++;
+                if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                    reject(error);
+                }
+            });
         });
 
-        socket.on('connect', () => {
-            console.log('[Socket.io] Connected:', socket?.id);
-        });
-        socket.on('disconnect', (reason) => {
-            console.log('[Socket.io] Disconnected:', reason);
-        });
-        socket.on('connect_error', (err) => {
-            console.warn('[Socket.io] Connection error:', err.message);
-        });
+        return this.connectionPromise;
     }
-    return socket;
-};
 
-export const disconnectSocket = (): void => {
-    if (socket) {
-        socket.disconnect();
-        socket = null;
+    joinAdmin() {
+        this.socket?.emit('join:admin');
     }
-};
+
+    joinClub(clubId: string) {
+        this.socket?.emit('join:club', clubId);
+    }
+
+    on(event: string, callback: (...args: any[]) => void) {
+        this.socket?.on(event, callback);
+    }
+
+    off(event: string, callback?: (...args: any[]) => void) {
+        this.socket?.off(event, callback);
+    }
+
+    getSocketInstance() {
+        return this.socket;
+    }
+
+    disconnect() {
+        if (this.socket) {
+            this.socket.disconnect();
+            this.socket = null;
+        }
+        this.connectionPromise = null;
+    }
+}
+
+export const socketService = new SocketService();
+
+export const getSocket = () => socketService.getSocketInstance();
+
+export { SOCKET_EVENTS };

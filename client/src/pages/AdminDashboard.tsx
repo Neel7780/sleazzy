@@ -14,7 +14,7 @@ import { Skeleton } from '../components/ui/skeleton';
 import { Calendar, type CalendarEvent } from '../components/ui/calendar';
 import AddBookingDialog from '../components/AddBookingDialog';
 import { groupBookings } from '../lib/api';
-import { getSocket } from '../lib/socket';
+import { getSocket, SOCKET_EVENTS } from '../lib/socket';
 import { toast } from 'sonner';
 
 const AdminDashboard: React.FC = () => {
@@ -96,7 +96,7 @@ const AdminDashboard: React.FC = () => {
   // Socket.io: join admin room and listen for new booking requests
   React.useEffect(() => {
     const socket = getSocket();
-    socket.emit('join:admin');
+    socket.emit(SOCKET_EVENTS.JOIN_ADMIN);
     const handleBookingNew = (payload: { eventName: string; clubName: string; venueNames: string }) => {
       toast.message('New Booking Request', {
         description: `${payload.clubName} requested "${payload.eventName}" at ${payload.venueNames}`,
@@ -108,14 +108,14 @@ const AdminDashboard: React.FC = () => {
       fetchData();
     };
 
-    socket.on('booking:new', handleBookingNew);
-    socket.on('events:updated', handleEventsUpdated);
-    socket.on('booking:status_changed', handleEventsUpdated);
+    socket.on(SOCKET_EVENTS.BOOKING_NEW, handleBookingNew);
+    socket.on(SOCKET_EVENTS.EVENTS_UPDATED, handleEventsUpdated);
+    socket.on(SOCKET_EVENTS.BOOKING_STATUS_CHANGED, handleEventsUpdated);
 
     return () => {
-      socket.off('booking:new', handleBookingNew);
-      socket.off('events:updated', handleEventsUpdated);
-      socket.off('booking:status_changed', handleEventsUpdated);
+      socket.off(SOCKET_EVENTS.BOOKING_NEW, handleBookingNew);
+      socket.off(SOCKET_EVENTS.EVENTS_UPDATED, handleEventsUpdated);
+      socket.off(SOCKET_EVENTS.BOOKING_STATUS_CHANGED, handleEventsUpdated);
     };
   }, [fetchData]);
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { apiRequest, ApiBooking, ApiVenue, mapBooking, groupBookings } from '../lib/api';
-import { getSocket } from '../lib/socket';
+import { getSocket, SOCKET_EVENTS } from '../lib/socket';
 import { getErrorMessage } from '../lib/errors';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -65,14 +65,14 @@ const MasterSchedule: React.FC = () => {
             fetchBookings();
         };
 
-        socket.on('events:updated', handleRefresh);
-        socket.on('booking:status_changed', handleRefresh);
-        socket.on('booking:new', handleRefresh);
+        socket.on(SOCKET_EVENTS.EVENTS_UPDATED, handleRefresh);
+        socket.on(SOCKET_EVENTS.BOOKING_STATUS_CHANGED, handleRefresh);
+        socket.on(SOCKET_EVENTS.BOOKING_NEW, handleRefresh);
 
         return () => {
-            socket.off('events:updated', handleRefresh);
-            socket.off('booking:status_changed', handleRefresh);
-            socket.off('booking:new', handleRefresh);
+            socket.off(SOCKET_EVENTS.EVENTS_UPDATED, handleRefresh);
+            socket.off(SOCKET_EVENTS.BOOKING_STATUS_CHANGED, handleRefresh);
+            socket.off(SOCKET_EVENTS.BOOKING_NEW, handleRefresh);
         };
     }, [fetchBookings]);
 

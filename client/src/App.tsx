@@ -17,7 +17,7 @@ import { ClipboardList, Layers } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import { apiRequest } from './lib/api';
 import { toastError } from './lib/toast';
-import { getSocket } from './lib/socket';
+import { getSocket, SOCKET_EVENTS } from './lib/socket';
 
 const USER_STORAGE_KEY = 'sleazzy_user_profile';
 
@@ -109,14 +109,14 @@ const App: React.FC = () => {
     // Join the appropriate socket room after login
     const socket = getSocket();
     if (loggedInUser.role === 'admin') {
-      socket.emit('join:admin');
+      socket.emit(SOCKET_EVENTS.JOIN_ADMIN);
     } else if (loggedInUser.email) {
       // For clubs, the server uses club_id for rooms.
       // We'll fetch the club data to get the id, but for now we join with email as a fallback.
       // Actual club-room join with ID happens in ClubDashboard once events load.
       apiRequest<{ id: string }[]>('/api/clubs').then(clubs => {
         const match = clubs.find((c: any) => c.email === loggedInUser.email);
-        if (match?.id) socket.emit('join:club', match.id);
+        if (match?.id) socket.emit(SOCKET_EVENTS.JOIN_CLUB, match.id);
       }).catch(() => { });
     }
   };
@@ -145,12 +145,12 @@ const App: React.FC = () => {
 
     const socket = getSocket();
     if (user.role === 'admin') {
-      socket.emit('join:admin');
+      socket.emit(SOCKET_EVENTS.JOIN_ADMIN);
     } else if (user.email) {
       // Fetch club info to join the correct room
       apiRequest<{ id: string }[]>('/api/clubs').then(clubs => {
         const match = clubs.find((c: any) => c.email === user.email);
-        if (match?.id) socket.emit('join:club', match.id);
+        if (match?.id) socket.emit(SOCKET_EVENTS.JOIN_CLUB, match.id);
       }).catch(() => { });
     }
   }, [user]);

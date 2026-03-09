@@ -239,6 +239,14 @@ export const mapBooking = (booking: ApiBooking) => {
 
 import { Booking, GroupedBooking } from '../types';
 
+/**
+ * Groups multiple single-venue bookings into logical multi-venue events.
+ * It combines bookings with the same batchId or (eventName, clubName, date, startTime, and eventType).
+ * 
+ * @param bookings - The array of individual api bookings
+ * @param venues - The array of available venues to resolve venue names
+ * @returns An array of GroupedBooking where multi-venue requests are consolidated
+ */
 export const groupBookings = (bookings: Booking[], venues: ApiVenue[] = []): GroupedBooking[] => {
   const grouped = new Map<string, GroupedBooking>();
 
@@ -248,9 +256,10 @@ export const groupBookings = (bookings: Booking[], venues: ApiVenue[] = []): Gro
     return (booking as any).venueName || id;
   };
 
-  const STATUS_PRIORITY: Record<string, number> = {
-    'approved': 3,
-    'pending': 2,
+  const STATUS_PRIORITY: Record<GroupedBooking['status'], number> = {
+    'approved': 4,
+    'pending': 3,
+    'partial': 2,
     'rejected': 1
   };
 

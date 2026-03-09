@@ -11,7 +11,7 @@ import { Badge } from '../components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { Skeleton } from '../components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { getSocket } from '../lib/socket';
+import { getSocket, SOCKET_EVENTS } from '../lib/socket';
 import ExtraRoomDialog from '../components/ExtraRoomDialog';
 
 const MyBookings: React.FC = () => {
@@ -52,18 +52,18 @@ const MyBookings: React.FC = () => {
     const socket = getSocket();
 
     if (myBookings.length > 0) {
-      socket.emit('join:club', myBookings[0].clubId);
+      socket.emit(SOCKET_EVENTS.JOIN_CLUB, myBookings[0].clubId);
     }
 
     const handleStatusChanged = () => fetchBookings();
     const handleEventsUpdated = () => fetchBookings();
 
-    socket.on('booking:status_changed', handleStatusChanged);
-    socket.on('events:updated', handleEventsUpdated);
+    socket.on(SOCKET_EVENTS.BOOKING_STATUS_CHANGED, handleStatusChanged);
+    socket.on(SOCKET_EVENTS.EVENTS_UPDATED, handleEventsUpdated);
 
     return () => {
-      socket.off('booking:status_changed', handleStatusChanged);
-      socket.off('events:updated', handleEventsUpdated);
+      socket.off(SOCKET_EVENTS.BOOKING_STATUS_CHANGED, handleStatusChanged);
+      socket.off(SOCKET_EVENTS.EVENTS_UPDATED, handleEventsUpdated);
     };
   }, [fetchBookings, myBookings]);
 

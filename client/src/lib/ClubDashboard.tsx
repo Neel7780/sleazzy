@@ -12,7 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { Calendar, type CalendarEvent } from '../components/ui/calendar';
 import { Skeleton } from '../components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { getSocket } from './socket';
+import { getSocket, SOCKET_EVENTS } from './socket';
 import { toast } from 'sonner';
 
 import { User } from '../types';
@@ -67,7 +67,7 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
 
     // Join club room if we have a clubId from the first event
     if (myEvents.length > 0) {
-      socket.emit('join:club', myEvents[0].clubId);
+      socket.emit(SOCKET_EVENTS.JOIN_CLUB, myEvents[0].clubId);
     } else if (user?.role === 'club') {
       // If we have at least one event, it works. 
     }
@@ -80,11 +80,11 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
       fetchEvents();
     };
 
-    socket.on('booking:status_changed', handleStatusChanged);
-    socket.on('events:updated', handleEventsUpdated);
+    socket.on(SOCKET_EVENTS.BOOKING_STATUS_CHANGED, handleStatusChanged);
+    socket.on(SOCKET_EVENTS.EVENTS_UPDATED, handleEventsUpdated);
     return () => {
-      socket.off('booking:status_changed', handleStatusChanged);
-      socket.off('events:updated', handleEventsUpdated);
+      socket.off(SOCKET_EVENTS.BOOKING_STATUS_CHANGED, handleStatusChanged);
+      socket.off(SOCKET_EVENTS.EVENTS_UPDATED, handleEventsUpdated);
     };
   }, [fetchEvents, myEvents, user]);
 
