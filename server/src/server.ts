@@ -6,7 +6,7 @@ import fs from 'fs';
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
-import { Server as SocketIOServer } from 'socket.io';
+import { Server as SocketIOServer, Socket } from 'socket.io';
 
 import bookingsRoutes from './routes/bookings';
 import adminRoutes from './routes/admin';
@@ -19,6 +19,27 @@ const httpServer = createServer(app);
 
 const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3005').split(',').map(s => s.trim());
 
+type SocketUser = {
+  id: string;
+  email: string;
+  role: 'club' | 'admin';
+  clubId?: string;
+};
+
+const extractTokenFromSocket = (socket: Socket): string | null => {
+  const authToken = socket.handshake.auth?.token;
+  if (typeof authToken === 'string' && authToken.trim()) {
+    return authToken.trim();
+  }
+
+  const authorizationHeader = socket.handshake.headers.authorization;
+  if (typeof authorizationHeader === 'string' && authorizationHeader.startsWith('Bearer ')) {
+    return authorizationHeader.slice('Bearer '.length).trim();
+  }
+
+  return null;
+};
+
 export const io = new SocketIOServer(httpServer, {
   cors: {
     origin: allowedOrigins,
@@ -26,17 +47,83 @@ export const io = new SocketIOServer(httpServer, {
   },
 });
 
+io.use(async (socket, next) => {
+  const token = extractTokenFromSocket(socket);
+
+  // Allow anonymous connections for public listeners, but restrict privileged room joins.
+  if (!token) {
+    socket.data.user = null;
+    return next();
+  }
+
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !authData.user) {
+      socket.data.user = null;
+      return next();
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, email')
+      .eq('id', authData.user.id)
+      .single();
+
+    if (profileError || !profile || (profile.role !== 'club' && profile.role !== 'admin')) {
+      socket.data.user = null;
+      return next();
+    }
+
+    const socketUser: SocketUser = {
+      id: authData.user.id,
+      email: profile.email,
+      role: profile.role,
+    };
+
+    if (socketUser.role === 'club') {
+      const { data: club } = await supabase
+        .from('clubs')
+        .select('id')
+        .eq('email', socketUser.email)
+        .single();
+
+      if (club?.id) {
+        socketUser.clubId = club.id;
+      }
+    }
+
+    socket.data.user = socketUser;
+    return next();
+  } catch (error) {
+    console.warn('[Socket.io] Failed to initialize socket auth context:', error);
+    socket.data.user = null;
+    return next();
+  }
+});
+
 io.on('connection', (socket) => {
   console.log(`[Socket.io] Client connected: ${socket.id}`);
 
   // Allow clubs to join their own room so they receive targeted notifications
   socket.on('join:club', (clubId: string) => {
+    const user = socket.data.user as SocketUser | null;
+    if (!user || user.role !== 'club' || !user.clubId || user.clubId !== clubId) {
+      socket.emit('socket:error', { message: 'Forbidden club room join' });
+      return;
+    }
+
     socket.join(`club:${clubId}`);
     console.log(`[Socket.io] Socket ${socket.id} joined room: club:${clubId}`);
   });
 
   // Allow admins to join the admin room
   socket.on('join:admin', () => {
+    const user = socket.data.user as SocketUser | null;
+    if (!user || user.role !== 'admin') {
+      socket.emit('socket:error', { message: 'Forbidden admin room join' });
+      return;
+    }
+
     socket.join('admin');
     console.log(`[Socket.io] Socket ${socket.id} joined room: admin`);
   });
