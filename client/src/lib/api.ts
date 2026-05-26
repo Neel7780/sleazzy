@@ -1,4 +1,5 @@
 import { ApiError, NetworkError } from './errors';
+import { Booking, GroupedBooking } from '../types';
 
 type ApiOptions = {
   method?: string;
@@ -8,57 +9,21 @@ type ApiOptions = {
 };
 
 const getApiBaseUrl = () => {
-  return import.meta.env.VITE_API_URL || '';
+  // Checks Vite env vars first. If missing, assumes local Express dev server on port 4000.
+  const envUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
+  return (envUrl || 'http://127.0.0.1:3000').replace(/\/$/, '');
 };
 
-const normalizeBaseUrl = (value: string) => value.replace(/\/$/, '');
-
-const getApiBaseUrls = () => {
-  const configured = normalizeBaseUrl(getApiBaseUrl());
-  const urls: string[] = [];
-
-  if (configured) {
-    urls.push(configured);
-  }
-
-  if (typeof window !== 'undefined') {
-    const sameOrigin = normalizeBaseUrl(window.location.origin);
-    if (sameOrigin && !urls.includes(sameOrigin)) {
-      urls.push(sameOrigin);
-    }
-  }
-
-  if (urls.length === 0) {
-    urls.push('');
-  }
-
-  return urls;
-};
-
-const getSupabaseAccessToken = () => {
+const getJwtToken = () => {
   if (typeof window === 'undefined') return null;
-
-  const directToken = localStorage.getItem('supabase_access_token');
-  if (directToken) return directToken;
-
-  const keys = Object.keys(localStorage);
-  const authKey = keys.find((key) => key.endsWith('-auth-token'));
-  if (!authKey) return null;
-
-  try {
-    const raw = localStorage.getItem(authKey);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { access_token?: string };
-    return parsed.access_token || null;
-  } catch {
-    return null;
-  }
+  return localStorage.getItem('jwt_token');
 };
 
 export const apiRequest = async <T>(path: string, options: ApiOptions = {}): Promise<T> => {
   const { method = 'GET', body, auth = false, headers = {} } = options;
-  const baseUrls = getApiBaseUrls();
-  const shouldDebugRegister = path.includes('/api/auth/register');
+  const baseUrl = getApiBaseUrl();
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const url = `${baseUrl}${normalizedPath}`;
 
   const requestHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -66,120 +31,56 @@ export const apiRequest = async <T>(path: string, options: ApiOptions = {}): Pro
   };
 
   if (auth) {
-    const token = getSupabaseAccessToken();
+    const token = getJwtToken();
     if (token) {
       requestHeaders.Authorization = `Bearer ${token}`;
     }
   }
 
-  let response: Response | null = null;
-  let lastFetchError: unknown = null;
+  let response: Response;
 
-  for (const [index, baseUrl] of baseUrls.entries()) {
-    const isLastBaseUrl = index === baseUrls.length - 1;
-    const url = baseUrl ? `${baseUrl}${path}` : path;
-
-    if (shouldDebugRegister) {
-      console.info('[apiRequest][register] Attempt', {
-        method,
-        url,
-        attempt: index + 1,
-        totalAttempts: baseUrls.length,
-      });
-    }
-
-    try {
-      response = await fetch(url, {
-        method,
-        headers: requestHeaders,
-        body: body ? JSON.stringify(body) : undefined,
-      });
-
-      const contentType = (response.headers.get('content-type') || '').toLowerCase();
-      const isProxyStyleBadRequest = response.status === 400 && !contentType.includes('application/json');
-
-      if (shouldDebugRegister) {
-        console.info('[apiRequest][register] Response', {
-          url,
-          status: response.status,
-          contentType,
-        });
-      }
-
-      // If target host returns a proxy/gateway style failure, try the next base URL.
-      if (!isLastBaseUrl && (response.status >= 500 || isProxyStyleBadRequest)) {
-        if (shouldDebugRegister) {
-          console.warn('[apiRequest][register] Falling back to next API base URL', {
-            url,
-            status: response.status,
-            isProxyStyleBadRequest,
-          });
-        }
-        continue;
-      }
-
-      break;
-    } catch (err) {
-      lastFetchError = err;
-      if (shouldDebugRegister) {
-        console.error('[apiRequest][register] Network error on attempt', {
-          url,
-          error: err,
-        });
-      }
-      if (isLastBaseUrl) {
-        throw new NetworkError(
-          err instanceof Error && err.message?.toLowerCase().includes('fetch')
-            ? 'Unable to reach the server. Please check your connection.'
-            : 'Network error. Please try again.'
-        );
-      }
-    }
-  }
-
-  if (!response) {
-    if (shouldDebugRegister) {
-      console.error('[apiRequest][register] No response from any API base URL', { baseUrls });
-    }
+  try {
+    response = await fetch(url, {
+      method,
+      headers: requestHeaders,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (err) {
+    console.error(`[apiRequest] Network error connecting to ${url}:`, err);
     throw new NetworkError(
-      lastFetchError instanceof Error && lastFetchError.message?.toLowerCase().includes('fetch')
-        ? 'Unable to reach the server. Please check your connection.'
-        : 'Network error. Please try again.'
+      'Unable to reach the backend server. Please check your connection and ensure the server is running.'
     );
   }
 
   if (!response.ok) {
-    let message = response.statusText;
+    let errorMessage = response.statusText; // Default to 'Not Found', 'Bad Request', etc.
     try {
       const contentType = response.headers.get('content-type') || '';
       if (contentType.includes('application/json')) {
-        const errorBody = await response.json().catch(() => ({}));
-        message =
-          (errorBody as { error?: string; message?: string }).error ??
-          (errorBody as { error?: string; message?: string }).message ??
-          message;
+        const errorData = await response.json();
+        // Extract the exact error message we wrote in our Express controllers
+        errorMessage = errorData.error || errorData.message || errorMessage;
       } else {
-        const text = await response.text().catch(() => '');
-        if (text) {
-          message = text.length > 200 ? text.slice(0, 200) : text;
-        }
+        const text = await response.text();
+        if (text) errorMessage = text.length > 200 ? text.slice(0, 200) : text;
       }
     } catch {
-      // response.text() could fail; keep statusText
+      // JSON parsing failed, just stick with the statusText
     }
-    if (shouldDebugRegister) {
-      console.error('[apiRequest][register] API error response', {
-        status: response.status,
-        message,
-      });
-    }
-    throw new ApiError(message, response.status);
+    
+    console.error(`[apiRequest] Error ${response.status} from ${url}:`, errorMessage);
+    throw new ApiError(errorMessage, response.status);
+  }
+
+  // Handle 204 No Content responses safely
+  if (response.status === 204) {
+    return {} as T;
   }
 
   try {
     return (await response.json()) as Promise<T>;
   } catch {
-    throw new ApiError('Invalid response from server.', response.status);
+    throw new ApiError('Invalid response format from server.', response.status);
   }
 };
 
@@ -237,13 +138,10 @@ export const mapBooking = (booking: ApiBooking) => {
   };
 };
 
-import { Booking, GroupedBooking } from '../types';
-
 /**
  * Groups multiple single-venue bookings into logical multi-venue events.
  * It combines bookings with the same batchId or (eventName, clubName, date, startTime, and eventType).
- * 
- * @param bookings - The array of individual api bookings
+ * * @param bookings - The array of individual api bookings
  * @param venues - The array of available venues to resolve venue names
  * @returns An array of GroupedBooking where multi-venue requests are consolidated
  */

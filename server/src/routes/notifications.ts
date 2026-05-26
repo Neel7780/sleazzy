@@ -1,5 +1,6 @@
 import express from 'express';
-import { supabase } from '../supabaseClient';
+// Swap Supabase for your database pool
+import { db } from '../db';
 import authMiddleware from '../middleware/auth';
 
 const router = express.Router();
@@ -10,94 +11,89 @@ router.use(authMiddleware);
 router.get('/', async (req, res) => {
     const unreadOnly = req.query.unread_only === 'true';
 
-    let query = supabase
-        .from('notifications')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
+    try {
+        // We use 1=1 as a base so we can safely append AND clauses
+        let queryStr = 'SELECT * FROM notifications WHERE 1=1';
+        const values: any[] = [];
 
-    if (unreadOnly) {
-        query = query.eq('is_read', false);
-    }
+        if (unreadOnly) {
+            values.push(false);
+            queryStr += ` AND is_read = $${values.length}`;
+        }
 
-    // Admins see all notifications (especially pending ones)
-    // Clubs only see their own (approval/rejection)
-    if (req.user?.role === 'club') {
-        query = query.eq('user_id', req.user.id);
-    } else if (req.user?.role === 'admin') {
-        // Admins see everything, but mainly ones where user_id is null (admin-targeted)
-        // or they can see all for monitoring. Let's show all for admins.
-    }
+        // Admins see all notifications
+        // Clubs only see their own
+        if (req.user?.role === 'club') {
+            values.push(req.user.id);
+            queryStr += ` AND user_id = $${values.length}`;
+        }
 
-    const { data, error } = await query;
+        queryStr += ' ORDER BY created_at DESC LIMIT 50';
 
-    if (error) {
+        const { rows } = await db.query(queryStr, values);
+        return res.json(rows);
+    } catch (error: any) {
         return res.status(500).json({ error: error.message });
     }
-
-    return res.json(data || []);
 });
 
 // Get unread count
 router.get('/unread-count', async (req, res) => {
-    let query = supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_read', false);
+    try {
+        let queryStr = 'SELECT COUNT(*) FROM notifications WHERE is_read = false';
+        const values: any[] = [];
 
-    if (req.user?.role === 'club') {
-        query = query.eq('user_id', req.user.id);
-    }
+        if (req.user?.role === 'club') {
+            values.push(req.user.id);
+            queryStr += ` AND user_id = $${values.length}`;
+        }
 
-    const { count, error } = await query;
-
-    if (error) {
+        const { rows } = await db.query(queryStr, values);
+        
+        // node-postgres returns COUNT() as a string, so we parse it
+        const count = parseInt(rows[0].count, 10);
+        return res.json({ count: isNaN(count) ? 0 : count });
+    } catch (error: any) {
         return res.status(500).json({ error: error.message });
     }
-
-    return res.json({ count: count || 0 });
 });
 
 // Mark one notification as read
 router.patch('/:id/read', async (req, res) => {
     const { id } = req.params;
 
-    let query = supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('id', id);
+    try {
+        let queryStr = 'UPDATE notifications SET is_read = true WHERE id = $1';
+        const values: any[] = [id];
 
-    if (req.user?.role === 'club') {
-        query = query.eq('user_id', req.user.id);
-    }
+        if (req.user?.role === 'club') {
+            values.push(req.user.id);
+            queryStr += ` AND user_id = $${values.length}`;
+        }
 
-    const { error } = await query;
-
-    if (error) {
+        await db.query(queryStr, values);
+        return res.json({ success: true });
+    } catch (error: any) {
         return res.status(500).json({ error: error.message });
     }
-
-    return res.json({ success: true });
 });
 
 // Mark all notifications as read
 router.patch('/read-all', async (req, res) => {
-    let query = supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('is_read', false);
+    try {
+        let queryStr = 'UPDATE notifications SET is_read = true WHERE is_read = false';
+        const values: any[] = [];
 
-    if (req.user?.role === 'club') {
-        query = query.eq('user_id', req.user.id);
-    }
+        if (req.user?.role === 'club') {
+            values.push(req.user.id);
+            queryStr += ` AND user_id = $${values.length}`;
+        }
 
-    const { error } = await query;
-
-    if (error) {
+        await db.query(queryStr, values);
+        return res.json({ success: true });
+    } catch (error: any) {
         return res.status(500).json({ error: error.message });
     }
-
-    return res.json({ success: true });
 });
 
 export default router;

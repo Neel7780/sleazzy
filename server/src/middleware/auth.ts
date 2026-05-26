@@ -1,5 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
-import { supabase } from '../supabaseClient';
+import jwt from 'jsonwebtoken';
+// Swap Supabase for your database pool
+import { db } from '../db'; 
 
 const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -8,13 +10,14 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
 
     // Mock Login for Dev/Test
     if (process.env.NODE_ENV !== 'production' && typeof mockEmail === 'string' && mockEmail) {
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, role, email')
-        .eq('email', mockEmail)
-        .single();
+      // Direct SQL Query instead of Supabase
+      const { rows } = await db.query(
+        'SELECT id, role, email FROM profiles WHERE email = $1 LIMIT 1',
+        [mockEmail]
+      );
+      const profile = rows[0];
 
-      if (profileError || !profile) {
+      if (!profile) {
         return res
           .status(401)
           .json({ error: `Mock user not found for email: ${mockEmail}` });
@@ -29,38 +32,47 @@ const authMiddleware = async (req: Request, res: Response, next: NextFunction) =
     }
 
     const token = authHeader.startsWith('Bearer ')
-      ? authHeader.slice('Bearer '.length)
+      ? authHeader.slice('Bearer '.length).trim()
       : null;
 
     if (!token) {
       return res.status(401).json({ error: 'Missing authorization token' });
     }
 
-    const { data: userData, error: userError } = await supabase.auth.getUser(token);
-
-    if (userError || !userData?.user) {
-      return res.status(401).json({ error: 'Invalid token' });
+    // 1. Verify the JWT locally (Replaces supabase.auth.getUser)
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      console.error("CRITICAL: JWT_SECRET is missing from your .env file!");
+      return res.status(500).json({ error: 'Internal server configuration error' });
     }
 
-    // Query profile with RLS bypassed (service role key automatically bypasses RLS)
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role, email')
-      .eq('id', userData.user.id)
-      .single();
-
-    if (profileError) {
-      console.error('Profile lookup error:', profileError);
-      return res.status(401).json({ error: 'User role not found', details: profileError.message });
+    let decoded;
+    try {
+      decoded = jwt.verify(token, secret) as { sub: string };
+    } catch (jwtError) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
     }
+
+    const userId = decoded.sub; // 'sub' is the standard JWT property for the User ID
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Invalid token payload structure' });
+    }
+
+    // 2. Query profile directly from Postgres (Replaces supabase.from('profiles')...)
+    const { rows } = await db.query(
+      'SELECT role, email FROM profiles WHERE id = $1 LIMIT 1',
+      [userId]
+    );
+    const profile = rows[0];
 
     if (!profile) {
-      console.error('Profile not found for user:', userData.user.id);
+      console.error('Profile not found for user:', userId);
       return res.status(401).json({ error: 'User profile does not exist' });
     }
 
     req.user = {
-      id: userData.user.id,
+      id: userId,
       email: profile.email,
       role: profile.role,
     };

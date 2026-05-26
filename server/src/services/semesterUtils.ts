@@ -1,4 +1,5 @@
-import { supabase } from '../supabaseClient';
+// Swap Supabase for your database pool
+import { db } from '../db';
 
 /**
  * Returns the semester date range (ISO strings) for a given date.
@@ -25,10 +26,10 @@ export function getSemesterRange(date: Date): { start: string; end: string } {
 
 /**
  * Counts the number of distinct co-curricular events (by batch_id) for a given
- * club within a semester range.  Bookings with status 'rejected' are excluded.
+ * club within a semester range. Bookings with status 'rejected' are excluded.
  *
  * @param excludeBookingId  Optional booking id to exclude (useful when editing
- *                          an existing booking so it doesn't count against itself).
+ * an existing booking so it doesn't count against itself).
  */
 export async function countCoCurricularBookings(
     clubId: string,
@@ -36,38 +37,46 @@ export async function countCoCurricularBookings(
     semesterEnd: string,
     excludeBookingId?: string,
 ): Promise<number> {
-    let query = supabase
-        .from('bookings')
-        .select('batch_id', { count: 'exact' })
-        .eq('club_id', clubId)
-        .eq('event_type', 'co_curricular')
-        .neq('status', 'rejected')
-        .gte('start_time', semesterStart)
-        .lte('start_time', semesterEnd);
+    
+    // 1. Build the base query
+    let queryStr = `
+        SELECT batch_id 
+        FROM bookings 
+        WHERE club_id = $1 
+          AND event_type = 'co_curricular' 
+          AND status != 'rejected' 
+          AND start_time >= $2 
+          AND start_time <= $3
+    `;
+    const values: any[] = [clubId, semesterStart, semesterEnd];
 
+    // 2. Dynamically append the exclude ID if it was provided
     if (excludeBookingId) {
-        query = query.neq('id', excludeBookingId);
+        values.push(excludeBookingId);
+        queryStr += ` AND id != $${values.length}`;
     }
 
-    const { data, error } = await query;
+    try {
+        // 3. Execute the query
+        const { rows } = await db.query(queryStr, values);
 
-    if (error) {
+        // Each event may span multiple venues (same batch_id), so we count unique
+        // batch_ids. Bookings without a batch_id are treated as individual events.
+        const batchIds = new Set<string>();
+        let noBatchCount = 0;
+        
+        for (const row of rows) {
+            if (row.batch_id) {
+                batchIds.add(row.batch_id);
+            } else {
+                noBatchCount++;
+            }
+        }
+
+        return batchIds.size + noBatchCount;
+    } catch (error: any) {
         throw new Error(`Failed to count co-curricular bookings: ${error.message}`);
     }
-
-    // Each event may span multiple venues (same batch_id), so we count unique
-    // batch_ids.  Bookings without a batch_id are treated as individual events.
-    const batchIds = new Set<string>();
-    let noBatchCount = 0;
-    for (const row of data ?? []) {
-        if (row.batch_id) {
-            batchIds.add(row.batch_id);
-        } else {
-            noBatchCount++;
-        }
-    }
-
-    return batchIds.size + noBatchCount;
 }
 
 export const CO_CURRICULAR_LIMIT = 2;

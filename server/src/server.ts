@@ -2,20 +2,29 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import path from 'path';
-import fs from 'fs';
 import express from 'express';
+import fs from 'fs';
 import cors from 'cors';
 import { createServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
+import jwt from 'jsonwebtoken'; // Added standard JWT verification
 
 import bookingsRoutes from './routes/bookings';
 import adminRoutes from './routes/admin';
 import notificationRoutes from './routes/notifications';
 import authRoutes from './routes/auth';
-import { supabase } from './supabaseClient';
+
+// 1. Swap Supabase for your new Neon DB Pool
+import { db } from './db'; 
 
 const app = express();
 const httpServer = createServer(app);
+
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://localhost:3005'],
+  credentials: true
+}));
+app.use(express.json());
 
 const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3005').split(',').map(s => s.trim());
 
@@ -57,38 +66,52 @@ io.use(async (socket, next) => {
   }
 
   try {
-    const { data: authData, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !authData.user) {
+    // 2. Standard JWT Verification (Replaces supabase.auth.getUser)
+    // Make sure you add JWT_SECRET to your backend .env file!
+    const secret = process.env.JWT_SECRET;
+    if (!secret) throw new Error("Missing JWT_SECRET");
+    
+    const decoded = jwt.verify(token, secret) as { sub: string };
+    const userId = decoded.sub; // 'sub' is the standard JWT field for User ID
+
+    if (!userId) {
       socket.data.user = null;
       return next();
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role, email')
-      .eq('id', authData.user.id)
-      .single();
+    // 3. Raw SQL Query for Profile (Replaces supabase.from('profiles'))
+    const profileResult = await db.query(
+      'SELECT role, email FROM profiles WHERE id = $1',
+      [userId]
+    );
 
-    if (profileError || !profile || (profile.role !== 'club' && profile.role !== 'admin')) {
+    if (profileResult.rows.length === 0) {
+      socket.data.user = null;
+      return next();
+    }
+
+    const profile = profileResult.rows[0];
+
+    if (profile.role !== 'club' && profile.role !== 'admin') {
       socket.data.user = null;
       return next();
     }
 
     const socketUser: SocketUser = {
-      id: authData.user.id,
+      id: userId,
       email: profile.email,
       role: profile.role,
     };
 
+    // 4. Raw SQL Query for Club (Replaces supabase.from('clubs'))
     if (socketUser.role === 'club') {
-      const { data: club } = await supabase
-        .from('clubs')
-        .select('id')
-        .eq('email', socketUser.email)
-        .single();
+      const clubResult = await db.query(
+        'SELECT id FROM clubs WHERE email = $1',
+        [socketUser.email]
+      );
 
-      if (club?.id) {
-        socketUser.clubId = club.id;
+      if (clubResult.rows.length > 0) {
+        socketUser.clubId = clubResult.rows[0].id;
       }
     }
 
@@ -136,12 +159,10 @@ io.on('connection', (socket) => {
 app.use(cors({ origin: allowedOrigins }));
 app.use(express.json({ limit: '5mb' }));
 
-// Narrow body-parser style errors that use `type` and `message` fields
 function isBodyParserError(err: unknown): err is { type: string; message?: string } {
   return typeof err === 'object' && err !== null && 'type' in err;
 }
 
-// Catch body-parser errors (e.g., malformed JSON)
 const bodyParserErrorHandler: express.ErrorRequestHandler = (err, req, res, next) => {
   if (err instanceof SyntaxError && 'body' in (err as { body?: unknown })) {
     console.error('JSON Parse Error:', err.message);
@@ -181,7 +202,8 @@ const bodyParserErrorHandler: express.ErrorRequestHandler = (err, req, res, next
 app.use(bodyParserErrorHandler);
 
 app.use((req, _res, next) => {
-  req.app.locals.supabase = supabase;
+  // 5. Provide the new DB pool to Express locals instead of Supabase
+  req.app.locals.db = db; 
   next();
 });
 
@@ -194,7 +216,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Serve frontend static files (when client dist is present, e.g. in Docker)
+// Serve frontend static files
 const clientDir = process.env.CLIENT_DIST_DIR || path.join(__dirname, '../../client');
 if (fs.existsSync(clientDir)) {
   app.use(express.static(clientDir));

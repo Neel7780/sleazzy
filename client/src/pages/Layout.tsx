@@ -66,6 +66,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
       }
     };
 
+    if (!socket) return;
     socket.on('booking:status_changed', handleStatusChanged);
     return () => {
       socket.off('booking:status_changed', handleStatusChanged);
@@ -200,7 +201,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
         </motion.header>
 
         {/* Page Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto overscroll-contain mb-bottom-nav">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 mb-bottom-nav">
           <div className="max-w-7xl mx-auto w-full">
             <AnimatePresence mode="wait">
               <motion.div

@@ -1,5 +1,6 @@
 import express from 'express';
-import { supabase } from '../supabaseClient';
+// 1. Swap Supabase for your new database pool
+import { db } from '../db'; 
 import authMiddleware from '../middleware/auth';
 import { createBooking, checkConflict } from '../controllers/bookingController';
 import { getSemesterRange, countCoCurricularBookings, CO_CURRICULAR_LIMIT } from '../services/semesterUtils';
@@ -7,83 +8,90 @@ import { getSemesterRange, countCoCurricularBookings, CO_CURRICULAR_LIMIT } from
 const router = express.Router();
 
 router.get('/venues', async (_req, res) => {
-  const { data, error } = await supabase.from('venues').select('*');
-
-  if (error) {
+  try {
+    const { rows } = await db.query('SELECT * FROM venues');
+    return res.json(rows);
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
-
-  return res.json(data || []);
 });
 
 router.get('/clubs', async (_req, res) => {
-  const { data, error } = await supabase.from('clubs').select('*');
-
-  if (error) {
+  try {
+    const { rows } = await db.query('SELECT * FROM clubs');
+    return res.json(rows);
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
-
-  return res.json(data || []);
 });
 
 router.get('/my-bookings', authMiddleware, async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
-    // 1. Find the club associated with this user's email
-    const { data: club, error: clubError } = await supabase
-      .from('clubs')
-      .select('id')
-      .eq('email', req.user.email)
-      .single();
+    //  Find the club associated with this user's email
+    const clubResult = await db.query(
+      'SELECT id FROM clubs WHERE email = $1 LIMIT 1',
+      [req.user.email]
+    );
 
-    if (clubError || !club) {
-      // Fallback: if no club found (e.g. admin or unlinked profile), fetch by user_id
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('*, clubs(name), venues(name)')
-        .eq('user_id', req.user.id)
-        .order('start_time', { ascending: false });
+    const queryStr = `
+      SELECT b.*, 
+             json_build_object('name', c.name) AS clubs,
+             json_build_object('name', v.name) AS venues
+      FROM bookings b
+      LEFT JOIN clubs c ON b.club_id = c.id
+      LEFT JOIN venues v ON b.venue_id = v.id
+      WHERE $1 = $2
+      ORDER BY b.start_time DESC
+    `;
 
-      if (error) return res.status(500).json({ error: error.message });
-      return res.json(data || []);
+    if (clubResult.rows.length === 0) {
+      // Fallback: if no club found, fetch by user_id
+      const { rows } = await db.query(
+        queryStr.replace('$1 = $2', 'b.user_id = $1'), 
+        [req.user.id]
+      );
+      return res.json(rows);
     }
 
-    // 2. Fetch all bookings for this club (regardless of who created them)
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('*, clubs(name), venues(name)')
-      .eq('club_id', club.id)
-      .order('start_time', { ascending: false });
-
-    if (error) {
-      return res.status(500).json({ error: error.message });
-    }
-
-    return res.json(data || []);
-  } catch (err) {
-    return res.status(500).json({ error: (err as any).message });
+    // Fetch all bookings for this club
+    const club = clubResult.rows[0];
+    const { rows } = await db.query(
+      queryStr.replace('$1 = $2', 'b.club_id = $1'), 
+      [club.id]
+    );
+    
+    return res.json(rows);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 
 router.get('/bookings/check-conflict', checkConflict);
+
 import { getBusyVenues } from '../controllers/bookingController';
 router.get('/busy-venues', getBusyVenues);
+
 router.post('/bookings', authMiddleware, createBooking);
 
 router.get('/public-bookings', async (_req, res) => {
-  const { data, error } = await supabase
-    .from('bookings')
-    .select('*, clubs(name), venues(name)')
-    .eq('status', 'approved')
-    .gte('end_time', new Date().toISOString())
-    .order('start_time', { ascending: true });
-
-  if (error) {
+  try {
+    const { rows } = await db.query(`
+      SELECT b.*, 
+             json_build_object('name', c.name) AS clubs,
+             json_build_object('name', v.name) AS venues
+      FROM bookings b
+      LEFT JOIN clubs c ON b.club_id = c.id
+      LEFT JOIN venues v ON b.venue_id = v.id
+      WHERE b.status = 'approved' AND b.end_time >= NOW()
+      ORDER BY b.start_time ASC
+    `);
+    
+    return res.json(rows);
+  } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
-
-  return res.json(data || []);
 });
 
 // Returns the co-curricular booking count for a club in the current semester
@@ -97,8 +105,8 @@ router.get('/bookings/co-curricular-count', authMiddleware, async (req, res) => 
     const { start, end } = getSemesterRange(new Date());
     const count = await countCoCurricularBookings(clubId, start, end);
     return res.json({ count, limit: CO_CURRICULAR_LIMIT });
-  } catch (err) {
-    return res.status(500).json({ error: (err as Error).message });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

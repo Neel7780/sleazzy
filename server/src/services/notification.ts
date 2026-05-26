@@ -1,4 +1,4 @@
-import { supabase } from '../supabaseClient';
+import { db } from '../db';
 
 export type NotificationType = 'booking_pending' | 'booking_approved' | 'booking_rejected' | 'booking_deleted' | 'general';
 
@@ -6,7 +6,7 @@ export interface CreateNotificationParams {
     type: NotificationType;
     title: string;
     message: string;
-    userId?: string;
+    userId?: string | null;
     metadata?: Record<string, any>;
 }
 
@@ -17,18 +17,19 @@ export interface CreateNotificationParams {
 export async function createNotification(params: CreateNotificationParams) {
     const { type, title, message, userId, metadata } = params;
 
-    const { error } = await supabase
-        .from('notifications')
-        .insert({
-            type,
-            title,
-            message,
-            user_id: userId, // Added userId to the insert
-            metadata: metadata || {},
-            is_read: false,
-        });
-
-    if (error) {
+    try {
+        await db.query(
+            `INSERT INTO notifications (type, title, message, user_id, metadata, is_read) 
+             VALUES ($1, $2, $3, $4, $5, false)`,
+            [
+                type, 
+                title, 
+                message, 
+                userId || null, 
+                metadata || {}
+            ]
+        );
+    } catch (error: any) {
         console.error('Failed to create notification:', error.message);
     }
 }
@@ -42,18 +43,30 @@ export async function createBookingPendingNotifications(
 ) {
     if (items.length === 0) return;
 
-    const notifications = items.map((item) => ({
-        type: 'booking_pending' as NotificationType,
-        title: 'New Booking Request',
-        message: `"${item.eventName}" at ${item.venueName} by ${item.clubName || 'Unknown'} — ${item.startTime} to ${item.endTime}`,
-        metadata: { venue: item.venueName, event: item.eventName, club: item.clubName },
-        user_id: null, // Admin notifications usually have null user_id if they are global for all admins
-        is_read: false,
-    }));
+    try {
+        const values: any[] = [];
+        const placeholders: string[] = [];
+        let paramIndex = 1;
 
-    const { error } = await supabase.from('notifications').insert(notifications);
+        // Dynamically build the placeholders and flat values array for bulk insert
+        for (const item of items) {
+            placeholders.push(`($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, false)`);
+            values.push(
+                'booking_pending', // type
+                'New Booking Request', // title
+                `"${item.eventName}" at ${item.venueName} by ${item.clubName || 'Unknown'} — ${item.startTime} to ${item.endTime}`, // message
+                null, // user_id
+                { venue: item.venueName, event: item.eventName, club: item.clubName } // metadata
+            );
+        }
 
-    if (error) {
+        const queryStr = `
+            INSERT INTO notifications (type, title, message, user_id, metadata, is_read)
+            VALUES ${placeholders.join(', ')}
+        `;
+
+        await db.query(queryStr, values);
+    } catch (error: any) {
         console.error('Failed to create booking pending notifications:', error.message);
     }
 }

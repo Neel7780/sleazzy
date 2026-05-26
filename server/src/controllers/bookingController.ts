@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
-import { supabase } from '../supabaseClient';
+// Swap Supabase for your database pool
+import { db } from '../db';
 import { sendApprovalNotification } from '../services/email';
 import { createBookingPendingNotifications } from '../services/notification';
 import { getSemesterRange, countCoCurricularBookings, CO_CURRICULAR_LIMIT } from '../services/semesterUtils';
@@ -82,21 +83,19 @@ const performVenueConflictCheck = async (
   if (!venueIds || venueIds.length === 0) return { conflict: false, message: '' };
 
   // Check for ANY booking that overlaps with the requested time for ANY of the requested venues
-  const { data: conflicts, error } = await supabase
-    .from('bookings')
-    .select('venue_id, venues(name)')
-    .neq('status', 'rejected')
-    .in('venue_id', venueIds)
-    .lt('start_time', endTime)
-    .gt('end_time', startTime);
+  const { rows: conflicts } = await db.query(`
+    SELECT b.venue_id, v.name AS venue_name
+    FROM bookings b
+    LEFT JOIN venues v ON b.venue_id = v.id
+    WHERE b.status != 'rejected'
+      AND b.venue_id = ANY($1::uuid[])
+      AND b.start_time < $2
+      AND b.end_time > $3
+  `, [venueIds, endTime, startTime]);
 
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (conflicts && conflicts.length > 0) {
+  if (conflicts.length > 0) {
     // Get unique venue names that have conflicts
-    const conflictingVenueNames = [...new Set(conflicts.map((c: any) => c.venues?.name || 'Unknown Venue'))];
+    const conflictingVenueNames = [...new Set(conflicts.map((c: any) => c.venue_name || 'Unknown Venue'))];
     return {
       conflict: true,
       message: `Conflict: The following venues are already booked during this time: ${conflictingVenueNames.join(', ')}`
@@ -149,48 +148,47 @@ export const createBooking = async (req: Request, res: Response) => {
     });
   }
 
-  // 1. Validate all venues exist
-  const { data: venues, error: venueError } = await supabase
-    .from('venues')
-    .select('id, category, capacity, name')
-    .in('id', venueIds);
-
-  if (venueError || !venues || venues.length !== venueIds.length) {
-    return res.status(404).json({ error: 'One or more venues not found' });
-  }
-
-  const { data: club, error: clubError } = await supabase
-    .from('clubs')
-    .select('id, group_category, name')
-    .eq('id', clubId)
-    .single();
-
-  if (clubError || !club) {
-    return res.status(404).json({ error: 'Club not found' });
-  }
-
-  if (!req.user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  // Clubs can only create bookings for themselves. Admins are allowed to create for any club.
-  if (req.user.role !== 'admin') {
-    const { data: requesterClub, error: requesterClubError } = await supabase
-      .from('clubs')
-      .select('id')
-      .eq('email', req.user.email)
-      .single();
-
-    if (requesterClubError || !requesterClub) {
-      return res.status(403).json({ error: 'Unable to resolve your club ownership' });
-    }
-
-    if (requesterClub.id !== clubId) {
-      return res.status(403).json({ error: 'You are not allowed to create bookings for another club' });
-    }
-  }
-
   try {
+    // 1. Validate all venues exist
+    const { rows: venues } = await db.query(
+      'SELECT id, category, capacity, name FROM venues WHERE id = ANY($1::uuid[])',
+      [venueIds]
+    );
+
+    if (venues.length !== venueIds.length) {
+      return res.status(404).json({ error: 'One or more venues not found' });
+    }
+
+    const { rows: clubRows } = await db.query(
+      'SELECT id, group_category, name FROM clubs WHERE id = $1',
+      [clubId]
+    );
+    const club = clubRows[0];
+
+    if (!club) {
+      return res.status(404).json({ error: 'Club not found' });
+    }
+
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Clubs can only create bookings for themselves. Admins are allowed to create for any club.
+    if (req.user.role !== 'admin') {
+      const { rows: requesterRows } = await db.query(
+        'SELECT id FROM clubs WHERE email = $1',
+        [req.user.email]
+      );
+      const requesterClub = requesterRows[0];
+
+      if (!requesterClub) {
+        return res.status(403).json({ error: 'Unable to resolve your club ownership' });
+      }
+
+      if (requesterClub.id !== clubId) {
+        return res.status(403).json({ error: 'You are not allowed to create bookings for another club' });
+      }
+    }
 
     // 2. Co-curricular limit: max 2 per club per semester
     if (eventType === 'co_curricular') {
@@ -209,119 +207,119 @@ export const createBooking = async (req: Request, res: Response) => {
       return res.status(409).json({ error: venueMessage });
     }
 
-  } catch (err) {
-    return res.status(500).json({ error: (err as Error).message });
-  }
+    // 4. Validate Capacity
+    for (const venue of venues) {
+      if (
+        typeof expectedAttendees === 'number' &&
+        typeof venue.capacity === 'number' &&
+        expectedAttendees > venue.capacity
+      ) {
+        return res.status(400).json({
+          error: `Expected attendees (${expectedAttendees}) exceed capacity of ${venue.name} (${venue.capacity})`,
+        });
+      }
+    }
 
-  // 4. Validate Capacity
-  for (const venue of venues) {
-    if (
-      typeof expectedAttendees === 'number' &&
-      typeof venue.capacity === 'number' &&
-      expectedAttendees > venue.capacity
-    ) {
-      return res.status(400).json({
-        error: `Expected attendees (${expectedAttendees}) exceed capacity of ${venue.name} (${venue.capacity})`,
+    const createdBookings = [];
+    const batchId = (req.body as any).batchId || randomUUID();
+
+    for (const venue of venues) {
+      let status: 'approved' | 'pending' = 'pending';
+      if (venue.category === 'auto_approval') {
+        status = 'approved';
+      } else if (venue.category === 'needs_approval') {
+        status = 'pending';
+      }
+
+      const { rows: insertRows } = await db.query(`
+        INSERT INTO bookings (club_id, venue_id, event_name, start_time, end_time, status, user_id, event_type, expected_attendees, batch_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING *
+      `, [
+        clubId,
+        venue.id,
+        eventName,
+        startTime,
+        endTime,
+        status,
+        req.user?.id || null,
+        eventType,
+        expectedAttendees || null,
+        batchId
+      ]);
+
+      if (insertRows.length === 0) {
+        throw new Error(`Failed to insert booking for venue ${venue.name}`);
+      }
+      
+      createdBookings.push(insertRows[0]);
+    }
+
+    // Send approval notification email when any booking is pending (venue needs approval)
+    const pendingForEmail = createdBookings.filter((b) => b.status === 'pending');
+    if (pendingForEmail.length > 0) {
+      const formatTime = (iso: string) => new Date(iso).toLocaleString();
+      const itemsForEmail = pendingForEmail.map((b) => {
+        const venue = venues.find((v) => v.id === b.venue_id);
+        return {
+          venueName: venue?.name ?? b.venue_id,
+          eventName: b.event_name,
+          startTime: b.start_time,
+          endTime: b.end_time,
+          clubName: club?.name,
+          eventType: b.event_type,
+        };
+      });
+
+      const itemsForNotification = pendingForEmail.map((b) => {
+        const venue = venues.find((v) => v.id === b.venue_id);
+        return {
+          venueName: venue?.name ?? b.venue_id,
+          eventName: b.event_name,
+          startTime: formatTime(b.start_time),
+          endTime: formatTime(b.end_time),
+          clubName: club?.name,
+        };
+      });
+
+      const { sent, error } = await sendApprovalNotification(itemsForEmail);
+      if (!sent && error) {
+        console.error('Approval email failed (bookings still created):', error);
+      }
+
+      // Also persist as in-app notifications
+      await createBookingPendingNotifications(itemsForNotification);
+    }
+
+    // Emit real-time event so admin sees the new booking immediately
+    const pendingBookings = createdBookings.filter((b) => b.status === 'pending');
+    if (pendingBookings.length > 0) {
+      io.to('admin').emit('booking:new', {
+        eventName,
+        clubName: club.name,
+        venueNames: venues.map(v => v.name).join(', '),
+        batchId,
+        clubId,
       });
     }
-  }
 
-  const createdBookings = [];
-  const batchId = (req.body as any).batchId || randomUUID();
-
-  for (const venue of venues) {
-    let status: 'approved' | 'pending' = 'pending';
-    if (venue.category === 'auto_approval') {
-      status = 'approved';
-    } else if (venue.category === 'needs_approval') {
-      status = 'pending';
+    // Also emit for auto-approved bookings so they show up on the club's own dashboard and public calendar instantly
+    const approvedBookings = createdBookings.filter((b) => b.status === 'approved');
+    if (approvedBookings.length > 0) {
+      io.to(`club:${clubId}`).emit('booking:status_changed', {
+        bookingId: approvedBookings[0].id,
+        status: 'approved',
+        eventName,
+        clubId,
+      });
+      io.emit('events:updated');
     }
 
-    const { data: booking, error: insertError } = await supabase
-      .from('bookings')
-      .insert({
-        club_id: clubId,
-        venue_id: venue.id,
-        event_name: eventName,
-        start_time: startTime,
-        end_time: endTime,
-        status,
-        user_id: req.user?.id,
-        event_type: eventType,
-        expected_attendees: expectedAttendees,
-        batch_id: batchId
-      })
-      .select('*')
-      .single();
-
-    if (insertError) {
-      console.error(`Failed to book venue ${venue.name}:`, insertError);
-      return res.status(500).json({ error: `Failed to book venue ${venue.name}. Partial success may have occurred.` });
-    }
-    createdBookings.push(booking);
+    return res.status(201).json(createdBookings);
+  } catch (err) {
+    console.error('Create booking failed:', err);
+    return res.status(500).json({ error: (err as Error).message });
   }
-
-  // Send approval notification email when any booking is pending (venue needs approval)
-  const pendingForEmail = createdBookings.filter((b) => b.status === 'pending');
-  if (pendingForEmail.length > 0) {
-    const formatTime = (iso: string) => new Date(iso).toLocaleString();
-    const itemsForEmail = pendingForEmail.map((b) => {
-      const venue = venues.find((v) => v.id === b.venue_id);
-      return {
-        venueName: venue?.name ?? b.venue_id,
-        eventName: b.event_name,
-        startTime: b.start_time,
-        endTime: b.end_time,
-        clubName: club?.name,
-        eventType: b.event_type,
-      };
-    });
-
-    const itemsForNotification = pendingForEmail.map((b) => {
-      const venue = venues.find((v) => v.id === b.venue_id);
-      return {
-        venueName: venue?.name ?? b.venue_id,
-        eventName: b.event_name,
-        startTime: formatTime(b.start_time),
-        endTime: formatTime(b.end_time),
-        clubName: club?.name,
-      };
-    });
-
-    const { sent, error } = await sendApprovalNotification(itemsForEmail);
-    if (!sent && error) {
-      console.error('Approval email failed (bookings still created):', error);
-    }
-
-    // Also persist as in-app notifications
-    await createBookingPendingNotifications(itemsForNotification);
-  }
-
-  // Emit real-time event so admin sees the new booking immediately
-  const pendingBookings = createdBookings.filter((b) => b.status === 'pending');
-  if (pendingBookings.length > 0) {
-    io.to('admin').emit('booking:new', {
-      eventName,
-      clubName: club.name,
-      venueNames: venues.map(v => v.name).join(', '),
-      batchId,
-      clubId,
-    });
-  }
-
-  // Also emit for auto-approved bookings so they show up on the club's own dashboard and public calendar instantly
-  const approvedBookings = createdBookings.filter((b) => b.status === 'approved');
-  if (approvedBookings.length > 0) {
-    io.to(`club:${clubId}`).emit('booking:status_changed', {
-      bookingId: approvedBookings[0].id,
-      status: 'approved',
-      eventName,
-      clubId,
-    });
-    io.emit('events:updated');
-  }
-
-  return res.status(201).json(createdBookings);
 };
 
 export const checkConflict = async (req: Request, res: Response) => {
@@ -345,8 +343,6 @@ export const checkConflict = async (req: Request, res: Response) => {
   }
 
   try {
-
-
     if (finalVenueIds.length > 0) {
       const { conflict: venueConflict, message: venueMessage } = await performVenueConflictCheck(finalVenueIds, startTime, endTime);
       if (venueConflict) {
@@ -359,6 +355,7 @@ export const checkConflict = async (req: Request, res: Response) => {
     return res.status(500).json({ error: (err as Error).message });
   }
 };
+
 export const getBusyVenues = async (req: Request, res: Response) => {
   const startTime = req.query.startTime as string;
   const endTime = req.query.endTime as string;
@@ -370,20 +367,17 @@ export const getBusyVenues = async (req: Request, res: Response) => {
   }
 
   try {
-    const { data: conflicts, error } = await supabase
-      .from('bookings')
-      .select('venue_id')
-      .neq('status', 'rejected')
-      .lt('start_time', endTime)
-      .gt('end_time', startTime);
+    const { rows: conflicts } = await db.query(`
+      SELECT DISTINCT venue_id
+      FROM bookings
+      WHERE status != 'rejected'
+        AND start_time < $1
+        AND end_time > $2
+    `, [endTime, startTime]);
 
-    if (error) {
-      console.error('[getBusyVenues] Supabase Error:', error);
-      return res.status(500).json({ error: error.message });
-    }
-
-    const busyVenueIds = [...new Set((conflicts || []).map((c: any) => c.venue_id))];
+    const busyVenueIds = conflicts.map((c: any) => c.venue_id);
     console.log('[getBusyVenues] Results:', busyVenueIds);
+    
     return res.json(busyVenueIds);
   } catch (err) {
     console.error('[getBusyVenues] Unexpected Error:', err);

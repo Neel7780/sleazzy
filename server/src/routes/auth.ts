@@ -1,6 +1,8 @@
-
 import express from 'express';
-import { supabase } from '../supabaseClient';
+import bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
+import jwt from 'jsonwebtoken';
+import { db } from '../db';
 import authMiddleware from '../middleware/auth';
 
 const router = express.Router();
@@ -21,60 +23,34 @@ router.post('/register', async (req, res) => {
         let userId = providedUserId;
 
         if (!userId) {
-            // 1. Create Auth User (Manual Registration)
-            const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-                email,
-                password,
-                email_confirm: true,
-                user_metadata: { role: 'club' }
-            });
+            // 1. Create Auth User (Manual Registration via SQL)
+            // Removed raw_user_meta_data as we store role in profiles now
+            userId = randomUUID();
+            const hashedPassword = await bcrypt.hash(password, 10);
 
-            if (authError) {
-                throw authError;
-            }
-
-            if (!authData.user) {
-                throw new Error('Failed to create user');
-            }
-            userId = authData.user.id;
+            await db.query(`
+                INSERT INTO auth.users (id, email, encrypted_password)
+                VALUES ($1, $2, $3)
+            `, [userId, email, hashedPassword]);
         }
 
-        // 2. Create Profile
-        const { error: profileError } = await supabase
-            .from('profiles')
-            .upsert({
-                id: userId,
-                email,
-                role: 'club',
-                full_name: clubName
-            });
+        // 2. Create or Update Profile (SQL Upsert)
+        await db.query(`
+            INSERT INTO profiles (id, email, role, full_name)
+            VALUES ($1, $2, 'club', $3)
+            ON CONFLICT (id) DO UPDATE 
+            SET email = EXCLUDED.email, 
+                full_name = EXCLUDED.full_name
+        `, [userId, email, clubName]);
 
-        if (profileError) {
-            console.error('Profile creation failed:', profileError);
-            throw new Error(`Failed to create profile: ${profileError.message}`);
-        }
-
-        // 3. Create Club Entry
-        // Check if club by email exists to avoid unique constraint violation
-        const { data: existingClub } = await supabase
-            .from('clubs')
-            .select('id')
-            .eq('email', email)
-            .single();
-
-        if (!existingClub) {
-            const { error: clubError } = await supabase
-                .from('clubs')
-                .insert({
-                    name: clubName,
-                    email,
-                    group_category: groupCategory
-                });
-
-            if (clubError) {
-                console.error('Club creation failed:', clubError);
-                throw new Error(`Failed to create club details: ${clubError.message}`);
-            }
+        // 3. Create Club Entry if it doesn't exist
+        const clubRes = await db.query('SELECT id FROM clubs WHERE email = $1', [email]);
+        
+        if (clubRes.rows.length === 0) {
+            await db.query(`
+                INSERT INTO clubs (name, email, group_category)
+                VALUES ($1, $2, $3)
+            `, [clubName, email, groupCategory]);
         }
 
         return res.status(201).json({ message: 'Registration successful', userId });
@@ -82,6 +58,33 @@ router.post('/register', async (req, res) => {
     } catch (err: any) {
         console.error('Registration error:', err);
         return res.status(400).json({ error: err.message });
+    }
+});
+
+router.post('/login', async (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Missing email or password' });
+    }
+
+    try {
+        const { rows } = await db.query('SELECT id, encrypted_password FROM auth.users WHERE email = $1', [email]);
+        const user = rows[0];
+
+        if (!user || !(await bcrypt.compare(password, user.encrypted_password))) {
+            return res.status(401).json({ error: 'Invalid email or password' });
+        }
+
+        const secret = process.env.JWT_SECRET;
+        if (!secret) throw new Error('Server configuration error: Missing JWT_SECRET');
+
+        const token = jwt.sign({ sub: user.id }, secret, { expiresIn: '7d' });
+
+        return res.json({ token });
+    } catch (err: any) {
+        console.error('Login error:', err);
+        return res.status(500).json({ error: 'Internal Server Error' });
     }
 });
 
@@ -96,83 +99,56 @@ router.get('/profile', async (req, res) => {
         }
 
         // 1. Fetch Profile
-        let { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
-            .single();
+        let profileRes = await db.query('SELECT * FROM profiles WHERE id = $1', [userId]);
+        let profile = profileRes.rows[0];
 
-        // If profile doesn't exist (e.g. first Google OAuth login), auto-create it
-        if (profileError?.code === 'PGRST116' || !profile) {
-            // Get user details from Supabase auth
-            const { data: { user: authUser }, error: authUserError } = await supabase.auth.admin.getUserById(userId);
-            if (authUserError || !authUser) {
+        // If profile doesn't exist (e.g. first login via legacy OAuth), auto-create it
+        if (!profile) {
+            // Get user details directly from auth.users table (removed raw_user_meta_data)
+            const authUserRes = await db.query('SELECT email FROM auth.users WHERE id = $1', [userId]);
+            const authUser = authUserRes.rows[0];
+            
+            if (!authUser) {
                 return res.status(404).json({ error: 'User not found in auth' });
             }
 
             const email = authUser.email || '';
-            const fullName = authUser.user_metadata?.full_name ||
-                authUser.user_metadata?.name ||
-                email.split('@')[0] ||
-                'New Club';
+            const fullName = email.split('@')[0] || 'New Club';
 
             // Upsert the profile
-            const { error: upsertError } = await supabase
-                .from('profiles')
-                .upsert({ id: userId, email, role: 'club', full_name: fullName });
-
-            if (upsertError) {
-                console.error('Auto-profile creation failed:', upsertError);
-                return res.status(500).json({ error: 'Failed to create profile automatically' });
-            }
+            await db.query(`
+                INSERT INTO profiles (id, email, role, full_name)
+                VALUES ($1, $2, 'club', $3)
+                ON CONFLICT (id) DO UPDATE 
+                SET email = EXCLUDED.email, 
+                    full_name = EXCLUDED.full_name
+            `, [userId, email, fullName]);
 
             // Auto-create club entry if not already there
-            const { data: existingClub } = await supabase
-                .from('clubs')
-                .select('id')
-                .eq('email', email)
-                .single();
-
-            if (!existingClub) {
-                const { error: clubError } = await supabase
-                    .from('clubs')
-                    .insert({ name: fullName, email, group_category: 'C' });
-                if (clubError) {
-                    console.error('Auto-club creation failed:', clubError);
-                }
+            const existingClub = await db.query('SELECT id FROM clubs WHERE email = $1', [email]);
+            
+            if (existingClub.rows.length === 0) {
+                await db.query(`
+                    INSERT INTO clubs (name, email, group_category)
+                    VALUES ($1, $2, 'C')
+                `, [fullName, email]);
             }
 
             // Re-fetch the profile
-            const { data: newProfile, error: refetchError } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', userId)
-                .single();
+            profileRes = await db.query('SELECT * FROM profiles WHERE id = $1', [userId]);
+            profile = profileRes.rows[0];
 
-            if (refetchError || !newProfile) {
+            if (!profile) {
                 return res.status(500).json({ error: 'Profile created but could not be fetched' });
             }
-
-            profile = newProfile;
-        } else if (profileError) {
-            console.error('Error fetching profile:', profileError);
-            return res.status(500).json({ error: 'Failed to fetch profile' });
         }
 
         let clubData = null;
 
         // 2. If Club, fetch Club details
         if (profile.role === 'club') {
-            const { data: club, error: clubError } = await supabase
-                .from('clubs')
-                .select('*')
-                .eq('email', profile.email)
-                .single();
-
-            if (clubError && clubError.code !== 'PGRST116') {
-                console.error('Error fetching club:', clubError);
-            }
-            clubData = club;
+            const clubRes = await db.query('SELECT * FROM clubs WHERE email = $1', [profile.email]);
+            clubData = clubRes.rows[0];
         }
 
         // 3. Construct Response
