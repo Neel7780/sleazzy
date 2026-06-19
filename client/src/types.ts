@@ -41,6 +41,16 @@ export interface ClubMember {
   updated_at: string;
 }
 
+export interface AppEvent {
+  id: string;
+  club_id: string;
+  name: string;
+  date: string;
+  venue: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export type EventType = 'co_curricular' | 'open_all' | 'closed_club';
 
 export type BookingStatus = 'approved' | 'pending' | 'rejected';
@@ -63,6 +73,7 @@ export interface Booking {
   startTimeISO?: string;
   endTimeISO?: string;
   venueName?: string;
+  event_id?: string;
 }
 
 export interface GroupedBooking extends Omit<Booking, 'id' | 'venueId' | 'status'> {

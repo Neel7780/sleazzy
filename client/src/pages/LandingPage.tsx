@@ -33,7 +33,7 @@ interface PublicEvent {
 }
 
 const EVENT_TYPE_COLORS: Record<string, { bg: string; text: string; border: string; dot: string }> = {
-    co_curricular: { bg: 'bg-indigo-500/15 dark:bg-indigo-400/20', text: 'text-indigo-700 dark:text-indigo-300', border: 'border-indigo-300/40 dark:border-indigo-500/30', dot: 'bg-indigo-500' },
+    co_curricular: { bg: 'bg-blue-500/15 dark:bg-blue-400/20', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-300/40 dark:border-blue-500/30', dot: 'bg-blue-500' },
     open_all: { bg: 'bg-emerald-500/15 dark:bg-emerald-400/20', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-300/40 dark:border-emerald-500/30', dot: 'bg-emerald-500' },
     closed_club: { bg: 'bg-amber-500/15 dark:bg-amber-400/20', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-300/40 dark:border-amber-500/30', dot: 'bg-amber-500' },
 };
@@ -96,7 +96,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGoToLogin }) => {
             ]);
             setVenues(venuesData);
             setPublicMembers(membersData);
-            const mapped = bookings.map(mapBooking);
+            const mapped = bookings
+                .map(mapBooking)
+                .filter(booking => booking.eventType !== 'closed_club');
             const grouped = groupBookings(mapped, venuesData);
 
             const finalParsed: PublicEvent[] = grouped.map(g => {
@@ -268,7 +270,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGoToLogin }) => {
                 >
                     Discover What's
                     <br />
-                    <span className="bg-clip-text text-transparent bg-linear-to-r from-brand via-violet-500 to-cyan-500">
+                    <span className="bg-clip-text text-transparent bg-linear-to-r from-brand via-[#E84E36] to-[#FDC02F]">
                         Happening on Campus
                     </span>
                 </motion.h1>
@@ -294,7 +296,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGoToLogin }) => {
                 {[
                     { key: 'co_curricular', label: 'Co-Curricular' },
                     { key: 'open_all', label: 'Open for All' },
-                    { key: 'closed_club', label: 'Closed Club' },
                 ].map(({ key, label }) => {
                     const c = EVENT_TYPE_COLORS[key];
                     return (

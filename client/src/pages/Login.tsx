@@ -126,7 +126,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
         className="w-full max-w-[420px] relative z-10"
       >
-        <div className="p-px rounded-2xl bg-linear-to-r from-indigo-500/60 via-purple-500/60 to-cyan-500/60 dark:from-indigo-400/40 dark:via-violet-500/40 dark:to-cyan-400/40 shadow-2xl">
+        <div className="p-px rounded-2xl bg-linear-to-r from-brand/60 via-[#E84E36]/60 to-[#FDC02F]/60 dark:from-brand/40 dark:to-[#FF6B52]/40 shadow-2xl">
           <div className="rounded-2xl overflow-hidden bg-white/95 dark:bg-[#0A0F1F]/95 backdrop-blur-xl">
             {/* Header */}
             <div className="border-b border-borderSoft/50 dark:border-white/10 pb-8 pt-8 sm:pt-10 text-center px-6 sm:px-8">
@@ -249,7 +249,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   <motion.div whileTap={{ scale: 0.98 }} className="pt-2">
                     <Button
                       type="submit"
-                      className="w-full rounded-xl h-12 text-base font-semibold bg-linear-to-r from-brand via-violet-500 to-cyan-500 text-white shadow-lg shadow-brand/25 hover:shadow-xl hover:shadow-brand/30 transition-all"
+                      className="w-full rounded-xl h-12 text-base font-semibold bg-linear-to-r from-brand via-[#E84E36] to-[#FDC02F] text-white shadow-lg shadow-brand/25 hover:shadow-xl hover:shadow-brand/30 transition-all"
                       disabled={form.formState.isSubmitting}
                     >
                       {form.formState.isSubmitting ? (

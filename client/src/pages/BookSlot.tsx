@@ -20,7 +20,7 @@ import { CLUBS, VENUES } from '../constants';
 import { apiRequest, type ApiClub, type ApiVenue } from '../lib/api';
 import { getErrorMessage } from '../lib/errors';
 import { toastError, toastSuccess } from '../lib/toast';
-import { EventType, ClubGroupType, User } from '../types';
+import { EventType, ClubGroupType, User, AppEvent } from '../types';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -42,6 +42,7 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
   const location = useLocation();
   const [clubs, setClubs] = useState<ApiClub[]>([]);
   const [venues, setVenues] = useState<ApiVenue[]>([]);
+  const [events, setEvents] = useState<AppEvent[]>([]);
   const [formData, setFormData] = useState({
     eventName: '',
     eventType: 'closed_club' as EventType,
@@ -51,7 +52,8 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
     endDate: '',
     startTime: '',
     endTime: '',
-    venueIds: [] as string[]
+    venueIds: [] as string[],
+    event_id: ''
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -81,12 +83,14 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
     const fetchMeta = async () => {
       setMetaError(null);
       try {
-        const [clubsData, venuesData] = await Promise.all([
+        const [clubsData, venuesData, eventsData] = await Promise.all([
           apiRequest<ApiClub[]>('/api/clubs'),
           apiRequest<ApiVenue[]>('/api/venues'),
+          currentUser.role === 'club' ? apiRequest<AppEvent[]>('/api/events', { auth: true }).catch(() => []) : Promise.resolve([])
         ]);
         setClubs(clubsData);
         setVenues(venuesData);
+        setEvents(eventsData);
       } catch (error) {
         console.error('Failed to load clubs/venues:', error);
         setMetaError(getErrorMessage(error, 'Failed to load clubs and venues. Please refresh the page.'));
@@ -425,7 +429,8 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
         endDate: '',
         startTime: '',
         endTime: '',
-        venueIds: []
+        venueIds: [],
+        event_id: ''
       });
       setSelectedDate(undefined);
       setSelectedEndDate(undefined);
@@ -639,6 +644,27 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
                 </div>
 
                 <div className="grid grid-cols-1 gap-6">
+                  {currentUser.role === 'club' && events.length > 0 && (
+                    <div className="space-y-2.5">
+                      <Label htmlFor="event_id" className="text-textSecondary font-semibold text-sm">Link to Event (Optional)</Label>
+                      <Select value={formData.event_id} onValueChange={(v) => handleChange('event_id', v === 'none' ? '' : v)}>
+                        <SelectTrigger id="event_id" className="h-10 border-borderSoft hover:bg-hoverSoft/50 focus:border-brand focus:ring-4 focus:ring-brand/20 transition-all rounded-xl">
+                          <SelectValue placeholder="Select an Event..." />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          <SelectItem value="none" className="cursor-pointer">
+                            <span className="font-medium text-textMuted">None / Standalone Booking</span>
+                          </SelectItem>
+                          {events.map(e => (
+                            <SelectItem key={e.id} value={e.id} className="cursor-pointer">
+                              <span className="font-semibold">{e.name}</span> <span className="text-textMuted text-xs">({new Date(e.date).toLocaleDateString()})</span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   <div className="space-y-2.5">
                     <Label htmlFor="eventName" className="text-textSecondary font-semibold text-sm">Event Name *</Label>
                     <Input

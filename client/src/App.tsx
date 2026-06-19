@@ -14,6 +14,7 @@ import ClubMembers from './pages/ClubMembers';
 import Login from './pages/Login';
 import LandingPage from './pages/LandingPage';
 import ClubsCommitteesPage from './pages/ClubsCommitteesPage';
+import ClubCommittee from './pages/ClubCommittee';
 import { User } from './types';
 import { apiRequest } from './lib/api';
 import { toastError } from './lib/toast';
@@ -179,6 +180,7 @@ const App: React.FC = () => {
             <Route path="/book" element={<BookSlot currentUser={user} />} />
             <Route path="/my-bookings" element={<MyBookings />} />
             <Route path="/members" element={<ClubMembers user={user} />} />
+            <Route path="/committee" element={user.role === 'club' ? <ClubCommittee user={user} /> : <Navigate to="/" replace />} />
             <Route path="/policy" element={<PolicyPage />} />
 
             <Route path="/admin/requests" element={<AdminRequests />} />

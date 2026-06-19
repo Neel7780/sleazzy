@@ -221,11 +221,14 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
+import eventsRoutes from './routes/events';
+
 app.use('/api', bookingsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/club-members', clubMembersRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/events', eventsRoutes);
 
 // Serve frontend static files
 const clientDir = process.env.CLIENT_DIST_DIR || path.join(__dirname, '../../client');

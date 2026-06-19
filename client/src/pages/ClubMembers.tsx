@@ -242,11 +242,11 @@ const ClubMembers: React.FC<ClubMembersProps> = ({ user }) => {
 
   const DESIGNATION_BADGES = {
     'Convenor': 'bg-brand/10 text-brand border-brand/20',
-    'Dy. Convener': 'bg-violet-500/10 text-violet-500 border-violet-500/20',
+    'Dy. Convener': 'bg-orange-500/10 text-orange-600 border-orange-500/20',
     'Core': 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
   };
 
-  const DEFAULT_BADGE_STYLE = 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20';
+  const DEFAULT_BADGE_STYLE = 'bg-slate-500/10 text-slate-500 border-slate-500/20';
 
   const MemberRow = ({ member, editable }: { member: ClubMember; editable: boolean }) => (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-borderSoft bg-card/50 hover:bg-hoverSoft/50 transition-colors">

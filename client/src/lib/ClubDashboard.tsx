@@ -11,7 +11,7 @@ import { Badge } from '../components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { Calendar, type CalendarEvent } from '../components/ui/calendar';
 import { Skeleton } from '../components/ui/skeleton';
-import { cn } from '@/lib/utils';
+import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { getSocket, SOCKET_EVENTS } from './socket';
 import { toast } from 'sonner';
 
@@ -21,12 +21,137 @@ interface ClubDashboardProps {
   user: User;
 }
 
+const formatEventType = (eventType?: string) => {
+  if (!eventType) return '';
+  return eventType.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
+};
+
+type ScheduleCalendarCardProps = {
+  title: string;
+  headerAction?: React.ReactNode;
+  selectedDate?: Date;
+  onSelectDate: (date?: Date) => void;
+  sourceEvents: Booking[];
+  calendarEvents: CalendarEvent[];
+  eventDates: Date[];
+  venues: ApiVenue[];
+  emptyMessage: string;
+};
+
+const isSameDay = (d1: Date, d2: Date) => {
+  return d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate();
+};
+
+const ScheduleCalendarCard = ({
+  title,
+  headerAction,
+  selectedDate,
+  onSelectDate,
+  sourceEvents,
+  calendarEvents,
+  eventDates,
+  venues,
+  emptyMessage,
+}: ScheduleCalendarCardProps) => {
+  const selectedDateEvents = selectedDate
+    ? sourceEvents.filter(event => isSameDay(new Date(event.date), selectedDate))
+    : [];
+
+  return (
+    <Card className="rounded-xl h-full">
+      <CardHeader className="border-b border-borderSoft p-4 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="text-lg sm:text-xl">{title}</CardTitle>
+          {headerAction}
+        </div>
+      </CardHeader>
+
+      <CardContent className="p-4 sm:p-6">
+        <div className="grid gap-6 xl:grid-cols-[minmax(420px,520px)_minmax(0,1fr)] xl:items-start">
+          <div className="flex justify-center overflow-hidden xl:justify-start">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={onSelectDate}
+              events={calendarEvents}
+              modifiers={{ hasEvents: eventDates }}
+              modifiersClassNames={{
+                hasEvents: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-primary"
+              }}
+              className="rounded-2xl"
+            />
+          </div>
+
+          <div className="min-w-0 border-t border-borderSoft pt-5 xl:min-h-[460px] xl:border-l xl:border-t-0 xl:pl-6 xl:pt-1">
+            <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
+              {selectedDate ? selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : 'Select a date'}
+            </h4>
+
+            <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1 xl:max-h-[410px]">
+              {selectedDate ? (
+                (() => {
+                  const dayGrouped = groupBookings(selectedDateEvents, venues);
+                  return dayGrouped.length > 0 ? (
+                    dayGrouped.map((event, index) => (
+                      <motion.div
+                        key={event.batchId || event.ids?.[0] || index}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                        whileHover={{ scale: 1.01 }}
+                      >
+                        <Card className="border border-borderSoft rounded-xl hover:border-brand/30 transition-colors">
+                          <CardContent className="p-4">
+                            <div className="font-semibold text-foreground text-sm mb-1">{event.eventName}</div>
+                            <div className="mt-0.5 mb-2 flex flex-wrap items-center gap-2">
+                              <span className="text-xs text-primary font-medium">{event.clubName}</span>
+                              {event.eventType && (
+                                <Badge variant="outline" className="text-[10px] h-5">
+                                  {formatEventType(event.eventType)}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="mt-2 flex items-start gap-2 text-xs text-muted-foreground">
+                              <Clock size={12} className="text-primary/60 mt-0.5" />
+                              <span>{event.startTime} - {event.endTime}</span>
+                            </div>
+                            <div className="mt-1.5 flex items-start gap-2 text-xs text-muted-foreground">
+                              <MapPin size={12} className="text-primary/60 mt-0.5" />
+                              <span>{event.venueName}</span>
+                            </div>
+                            {event.status === 'partial' && (
+                              <div className="mt-2">
+                                <Badge variant="warning" className="text-[10px]">PARTIAL APPROVAL</Badge>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground text-sm">
+                      {emptyMessage}
+                    </div>
+                  );
+                })()
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
   const [allEvents, setAllEvents] = React.useState<Booking[]>([]);
   const [myEvents, setMyEvents] = React.useState<Booking[]>([]);
   const [venues, setVenues] = React.useState<ApiVenue[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [calendarView, setCalendarView] = React.useState<'global' | 'club'>('global');
 
   const fetchEvents = React.useCallback(async () => {
     setIsLoading(true);
@@ -35,7 +160,7 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
       const [venuesData, myBookings, publicBookings] = await Promise.all([
         apiRequest<ApiVenue[]>('/api/venues'),
         apiRequest<ApiBooking[]>('/api/my-bookings', { auth: true }),
-        apiRequest<ApiBooking[]>('/api/public-bookings'),
+        apiRequest<ApiBooking[]>('/api/campus-bookings', { auth: true }),
       ]);
 
       const mappedMyBookings = myBookings.map(mapBooking);
@@ -92,33 +217,22 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
 
-  const isSameDay = (d1: Date, d2: Date) => {
-    return d1.getFullYear() === d2.getFullYear() &&
-      d1.getMonth() === d2.getMonth() &&
-      d1.getDate() === d2.getDate();
-  };
+  const visibleGlobalEvents = React.useMemo(() => {
+    const myEventIds = new Set(myEvents.map(event => event.id));
+    const otherPublicEvents = allEvents.filter(event => !myEventIds.has(event.id));
+    return [...myEvents, ...otherPublicEvents];
+  }, [allEvents, myEvents]);
 
-  const getEventsForDate = (date: Date) => {
-    return myEvents.filter(e => {
-      const eDate = new Date(e.date);
-      return isSameDay(eDate, date);
-    });
-  };
-
-  // Normalize to local midnight so DayPicker's modifier date-matching works correctly
-  const eventDates = React.useMemo(() =>
-    myEvents.map(e => {
+  const getEventDates = React.useCallback((events: Booking[]) =>
+    events.map(e => {
       const d = new Date(e.date);
       return new Date(d.getFullYear(), d.getMonth(), d.getDate());
     }),
-    [myEvents]
+    []
   );
 
-  const selectedDateEvents = selectedDate ? getEventsForDate(selectedDate) : [];
-
-  // Show club's own bookings on the calendar (includes pending, approved, rejected)
-  const calendarEventsWithVenue: CalendarEvent[] = React.useMemo(() =>
-    myEvents.map(e => ({
+  const toCalendarEvents = React.useCallback((events: Booking[]): CalendarEvent[] =>
+    events.map(e => ({
       eventName: e.eventName,
       clubName: e.clubName,
       date: e.date,
@@ -126,18 +240,54 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
       endTime: e.endTime,
       venueName: getVenueName(e.venueId),
       status: e.status,
+      eventType: e.eventType,
     })),
-    [myEvents, venues]
+    [venues]
   );
+
+  // Normalize to local midnight so DayPicker's modifier date-matching works correctly
+  const eventDates = React.useMemo(() => getEventDates(visibleGlobalEvents), [getEventDates, visibleGlobalEvents]);
+  const myEventDates = React.useMemo(() => getEventDates(myEvents), [getEventDates, myEvents]);
+
+  // Show approved campus bookings plus this club's own bookings, including closed-club events for booking awareness.
+  const calendarEventsWithVenue = React.useMemo(() => toCalendarEvents(visibleGlobalEvents), [toCalendarEvents, visibleGlobalEvents]);
+  const myCalendarEventsWithVenue = React.useMemo(() => toCalendarEvents(myEvents), [toCalendarEvents, myEvents]);
+  const activeCalendar = React.useMemo(() => {
+    if (calendarView === 'club') {
+      return {
+        title: 'My Club Calendar',
+        sourceEvents: myEvents,
+        calendarEvents: myCalendarEventsWithVenue,
+        eventDates: myEventDates,
+        emptyMessage: 'No club events scheduled for this day.',
+      };
+    }
+
+    return {
+      title: 'Global Event Schedule',
+      sourceEvents: visibleGlobalEvents,
+      calendarEvents: calendarEventsWithVenue,
+      eventDates,
+      emptyMessage: 'No events scheduled for this day.',
+    };
+  }, [
+    calendarView,
+    calendarEventsWithVenue,
+    eventDates,
+    myCalendarEventsWithVenue,
+    myEventDates,
+    myEvents,
+    visibleGlobalEvents,
+  ]);
 
   const upcomingEvents = React.useMemo(() => {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
-    return groupBookings(myEvents, venues)
+    return groupBookings(visibleGlobalEvents, venues)
       .filter(e => new Date(e.date) >= now)
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .slice(0, 6);
-  }, [myEvents, venues]);
+  }, [visibleGlobalEvents, venues]);
 
   if (error) {
     return (
@@ -208,87 +358,34 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
         </Button>
       </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
-        {/* Calendar Widget */}
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-6 sm:gap-8">
+        {/* Schedule Calendar */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="lg:col-span-2"
         >
-          <Card className="rounded-xl">
-            <CardHeader className="border-b border-borderSoft p-4 sm:p-6">
-              <CardTitle className="text-lg sm:text-xl">Global Event Schedule</CardTitle>
-            </CardHeader>
-
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex flex-col md:flex-row gap-6 sm:gap-8">
-                {/* Calendar container - centered but spanning more width */}
-                <div className="flex-1 flex justify-center lg:justify-start overflow-hidden">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={setSelectedDate}
-                    events={calendarEventsWithVenue}
-                    modifiers={{ hasEvents: eventDates }}
-                    modifiersClassNames={{
-                      hasEvents: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-primary"
-                    }}
-                    className="rounded-2xl"
-                  />
-                </div>
-
-                <div className="lg:flex-1 border-t lg:border-t-0 lg:border-l border-borderSoft lg:pl-6 pt-4 lg:pt-0 flex flex-col min-w-0">
-                  <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
-                    {selectedDate ? selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : 'Select a date'}
-                  </h4>
-
-                  <div className="flex-1 overflow-y-auto space-y-3 max-h-[300px]">
-                    {selectedDate ? (
-                      (() => {
-                        const dayGrouped = groupBookings(selectedDateEvents, venues);
-                        return dayGrouped.length > 0 ? (
-                          dayGrouped.map((event, index) => (
-                            <motion.div
-                              key={event.batchId || event.ids?.[0] || index}
-                              initial={{ opacity: 0, scale: 0.95 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              transition={{ duration: 0.3, delay: index * 0.05 }}
-                              whileHover={{ scale: 1.01 }}
-                            >
-                              <Card className="border border-borderSoft rounded-xl hover:border-brand/30 transition-colors">
-                                <CardContent className="p-4">
-                                  <div className="font-semibold text-foreground text-sm mb-1">{event.eventName}</div>
-                                  <div className="text-xs text-primary font-medium mt-0.5 mb-2">{event.clubName}</div>
-                                  <div className="mt-2 flex items-start gap-2 text-xs text-muted-foreground">
-                                    <Clock size={12} className="text-primary/60 mt-0.5" />
-                                    <span>{event.startTime} - {event.endTime}</span>
-                                  </div>
-                                  <div className="mt-1.5 flex items-start gap-2 text-xs text-muted-foreground">
-                                    <MapPin size={12} className="text-primary/60 mt-0.5" />
-                                    <span>{event.venueName}</span>
-                                  </div>
-                                  {event.status === 'partial' && (
-                                    <div className="mt-2">
-                                      <Badge variant="warning" className="text-[10px]">PARTIAL APPROVAL</Badge>
-                                    </div>
-                                  )}
-                                </CardContent>
-                              </Card>
-                            </motion.div>
-                          ))
-                        ) : (
-                          <div className="text-center py-8 text-muted-foreground text-sm">
-                            No events scheduled for this day.
-                          </div>
-                        );
-                      })()
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <ScheduleCalendarCard
+            title={activeCalendar.title}
+            headerAction={
+              <Tabs
+                value={calendarView}
+                onValueChange={(value) => setCalendarView(value as 'global' | 'club')}
+              >
+                <TabsList aria-label="Calendar view" className="grid w-full grid-cols-2 sm:w-auto">
+                  <TabsTrigger value="global">Global</TabsTrigger>
+                  <TabsTrigger value="club">My Club</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            }
+            selectedDate={selectedDate}
+            onSelectDate={setSelectedDate}
+            sourceEvents={activeCalendar.sourceEvents}
+            calendarEvents={activeCalendar.calendarEvents}
+            eventDates={activeCalendar.eventDates}
+            venues={venues}
+            emptyMessage={activeCalendar.emptyMessage}
+          />
         </motion.div>
 
         {/* Your Upcoming Events (Sidebar) */}
@@ -327,8 +424,8 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
                     </div>
                     <div className="mt-2 flex items-center gap-3">
                       {event.eventType && (
-                        <Badge variant="outline" className="text-[10px] h-5 capitalize">
-                          {event.eventType.replace('_', ' ')}
+                        <Badge variant="outline" className="text-[10px] h-5">
+                          {formatEventType(event.eventType)}
                         </Badge>
                       )}
                       {event.expectedAttendees && (
@@ -391,7 +488,14 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
                     <Card className="border border-borderSoft rounded-xl hover:border-brand/30 hover:shadow-md transition-all duration-200 h-full">
                       <CardContent className="p-4">
                         <div className="font-semibold text-foreground text-sm leading-tight mb-1">{event.eventName}</div>
-                        <div className="text-xs text-primary font-medium mb-3">{event.clubName}</div>
+                        <div className="mb-3 flex flex-wrap items-center gap-2">
+                          <span className="text-xs text-primary font-medium">{event.clubName}</span>
+                          {event.eventType && (
+                            <Badge variant="outline" className="text-[10px] h-5">
+                              {formatEventType(event.eventType)}
+                            </Badge>
+                          )}
+                        </div>
                         <div className="space-y-1.5">
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <CalendarPlus size={12} className="text-primary/60 shrink-0" />

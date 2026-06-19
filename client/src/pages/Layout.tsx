@@ -34,7 +34,7 @@ const clubLinks = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/book', label: 'Book Slot', icon: CalendarPlus },
   { to: '/my-bookings', label: 'My Bookings', icon: CalendarDays },
-  { to: '/members', label: 'Members', icon: Users },
+  { to: '/committee', label: 'Committee', icon: Users },
   { to: '/policy', label: 'Policy', icon: FileText },
 ];
 
@@ -80,7 +80,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
       'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 relative group',
       isActive
         ? 'text-brand bg-brand/8 font-semibold'
-        : 'text-textMuted hover:text-textPrimary hover:bg-hoverSoft'
+        : 'text-textMuted dark:text-white hover:text-textPrimary dark:hover:text-white hover:bg-hoverSoft'
     );
 
   const mobileNavClass = (isActive: boolean) =>
@@ -139,7 +139,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
           >
             <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-hoverSoft transition-colors group">
               <Avatar className="h-10 w-10 border border-borderSoft shrink-0 shadow-sm transition-all group-hover:border-brand/50 ring-2 ring-brand/10">
-                <AvatarFallback className="bg-linear-to-br from-brand to-violet-500 text-white font-semibold text-sm">
+                <AvatarFallback className="bg-brand text-white font-semibold text-sm">
                   {user.name.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -147,7 +147,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
                 <p className="text-sm font-semibold text-textPrimary truncate group-hover:text-brand transition-colors">
                   {user.name}
                 </p>
-                <p className="text-xs text-textMuted truncate">
+                <p className="text-xs text-textMuted dark:text-white/85 truncate">
                   {user.role === 'club' ? `Group ${user.group}` : 'Administrator'}
                 </p>
               </div>
