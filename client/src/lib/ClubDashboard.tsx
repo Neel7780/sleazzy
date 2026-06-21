@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CalendarPlus, Clock, MapPin, ChevronRight, Info, Users, AlertTriangle, RefreshCw } from 'lucide-react';
+import { CalendarPlus, Clock, MapPin, ChevronRight, Info, Users, AlertTriangle, RefreshCw, Plus } from 'lucide-react';
 import { apiRequest, mapBooking, groupBookings, type ApiBooking, type ApiVenue } from './api';
 import { getErrorMessage } from './errors';
-import { Booking } from '../types';
+import { Booking, AppEvent, User } from '../types';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -14,8 +14,9 @@ import { Skeleton } from '../components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { getSocket, SOCKET_EVENTS } from './socket';
 import { toast } from 'sonner';
-
-import { User } from '../types';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../components/ui/dialog';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 
 interface ClubDashboardProps {
   user: User;
@@ -149,18 +150,27 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
   const [allEvents, setAllEvents] = React.useState<Booking[]>([]);
   const [myEvents, setMyEvents] = React.useState<Booking[]>([]);
   const [venues, setVenues] = React.useState<ApiVenue[]>([]);
+  const [registeredEvents, setRegisteredEvents] = React.useState<AppEvent[]>([]);
+  const [isAddEventOpen, setIsAddEventOpen] = React.useState(false);
+  const [newEvent, setNewEvent] = React.useState({ name: '', date: '', venue: '' });
+  const [isSaving, setIsSaving] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [calendarView, setCalendarView] = React.useState<'global' | 'club'>('global');
+  const navigate = useNavigate();
+
+  const isCommittee = user.name.toLowerCase().includes('committee');
+  const entityType = isCommittee ? 'Committee' : 'Club';
 
   const fetchEvents = React.useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [venuesData, myBookings, publicBookings] = await Promise.all([
+      const [venuesData, myBookings, publicBookings, eventsData] = await Promise.all([
         apiRequest<ApiVenue[]>('/api/venues'),
         apiRequest<ApiBooking[]>('/api/my-bookings', { auth: true }),
         apiRequest<ApiBooking[]>('/api/campus-bookings', { auth: true }),
+        apiRequest<AppEvent[]>('/api/events', { auth: true }),
       ]);
 
       const mappedMyBookings = myBookings.map(mapBooking);
@@ -169,15 +179,37 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
       setVenues(venuesData);
       setMyEvents(mappedMyBookings);
       setAllEvents(mappedPublicBookings);
+      setRegisteredEvents(eventsData);
     } catch (err) {
       console.error('Failed to fetch events:', err);
       setError(getErrorMessage(err, 'Failed to load events.'));
       setAllEvents([]);
       setMyEvents([]);
+      setRegisteredEvents([]);
     } finally {
       setIsLoading(false);
     }
   }, []);
+
+  const handleCreateEvent = async () => {
+    setIsSaving(true);
+    try {
+      await apiRequest('/api/events', {
+        method: 'POST',
+        auth: true,
+        body: newEvent,
+      });
+      toast.success('Event registered successfully');
+      setIsAddEventOpen(false);
+      setNewEvent({ name: '', date: '', venue: '' });
+      fetchEvents();
+    } catch (error) {
+      console.error('Failed to create event:', error);
+      toast.error('Failed to register event');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   React.useEffect(() => {
     fetchEvents();
@@ -388,23 +420,25 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
           />
         </motion.div>
 
-        {/* Your Upcoming Events (Sidebar) */}
+        {/* Your Upcoming Events & Registered Events (Sidebar) */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
+          className="space-y-6"
         >
+          {/* Card 1: My Club Bookings */}
           <Card className="border border-borderSoft rounded-xl">
             <CardHeader className="border-b border-borderSoft">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">My Club Events</CardTitle>
+                <CardTitle className="text-lg">My {entityType} Bookings</CardTitle>
                 <Button variant="ghost" size="sm" asChild>
                   <Link to="/my-bookings" className="text-xs">View All</Link>
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="divide-y divide-border/40 overflow-y-auto max-h-[400px]">
+              <div className="divide-y divide-border/40 overflow-y-auto max-h-[300px]">
                 {groupBookings(myEvents, venues).map((event, index) => (
                   <motion.div
                     key={event.batchId || event.ids?.[0] || index}
@@ -451,7 +485,69 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
                   </motion.div>
                 ))}
                 {myEvents.length === 0 && (
-                  <div className="p-6 text-center text-muted-foreground text-sm">No upcoming events.</div>
+                  <div className="p-6 text-center text-muted-foreground text-sm">No upcoming bookings.</div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 2: Registered Events */}
+          <Card className="border border-borderSoft rounded-xl">
+            <CardHeader className="border-b border-borderSoft">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Registered {entityType} Events</CardTitle>
+                <Button 
+                  onClick={() => setIsAddEventOpen(true)} 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 px-2 text-xs text-brand hover:text-brand/80 hover:bg-brand/10 gap-1 rounded-lg font-semibold"
+                >
+                  <Plus size={14} />
+                  Register
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y divide-border/40 overflow-y-auto max-h-[300px]">
+                {registeredEvents.map((event, index) => (
+                  <motion.div
+                    key={event.id}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3, delay: index * 0.05 }}
+                    className="p-4 hover:bg-hoverSoft/40 transition-colors flex flex-col gap-2"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-foreground text-sm truncate">{event.name}</div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                          Date: {new Date(event.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => navigate('/book', { 
+                          state: { 
+                            prefill: { 
+                              event_id: event.id,
+                              eventName: event.name,
+                              date: event.date ? event.date.split('T')[0] : '',
+                              venueName: event.venue || ''
+                            } 
+                          } 
+                        })}
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[11px] rounded-lg bg-brand/10 hover:bg-brand/20 border-brand/20 text-brand font-bold shrink-0 px-2.5 py-0"
+                      >
+                        Book Slot
+                      </Button>
+                    </div>
+                  </motion.div>
+                ))}
+                {registeredEvents.length === 0 && (
+                  <div className="p-6 text-center text-muted-foreground text-sm">
+                    No registered events yet.
+                  </div>
                 )}
               </div>
             </CardContent>
@@ -544,6 +640,51 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
           </AlertDescription>
         </Alert>
       </motion.div>
+
+      {/* Dialog for Register Event */}
+      <Dialog open={isAddEventOpen} onOpenChange={setIsAddEventOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl bg-card border border-borderSoft text-textPrimary">
+          <DialogHeader>
+            <DialogTitle>Register a New Event</DialogTitle>
+            <DialogDescription className="text-textMuted">
+              Create an event to tie slot bookings to it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="event-name-dialog" className="text-textSecondary">Event Name *</Label>
+              <Input
+                id="event-name-dialog"
+                value={newEvent.name}
+                onChange={e => setNewEvent({ ...newEvent, name: e.target.value })}
+                placeholder="e.g. Annual Tech Fest"
+                className="rounded-xl bg-bgMain border-borderSoft text-textPrimary"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="event-date-dialog" className="text-textSecondary">Date *</Label>
+              <Input
+                id="event-date-dialog"
+                type="date"
+                value={newEvent.date}
+                onChange={e => setNewEvent({ ...newEvent, date: e.target.value })}
+                className="rounded-xl bg-bgMain border-borderSoft text-textPrimary"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setIsAddEventOpen(false)} className="rounded-xl border-borderSoft text-textSecondary hover:bg-hoverSoft">Cancel</Button>
+            <Button 
+              type="button"
+              onClick={handleCreateEvent} 
+              disabled={isSaving || !newEvent.name || !newEvent.date}
+              className="rounded-xl bg-brand hover:bg-brand/90 text-white font-semibold"
+            >
+              {isSaving ? 'Registering...' : 'Register Event'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 };

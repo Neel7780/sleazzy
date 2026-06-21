@@ -6,26 +6,10 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
-import { format, parse, startOfWeek, getDay } from 'date-fns';
-import { enUS } from 'date-fns/locale';
-import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { Calendar as CalendarIcon, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { type ApiVenue } from '../lib/api';
 
-const locales = {
-  'en-US': enUS,
-};
 
-const localizer = dateFnsLocalizer({
-  format,
-  parse,
-  startOfWeek,
-  getDay,
-  locales,
-});
 
 interface ClubCommitteeProps {
   user: User;
@@ -33,20 +17,18 @@ interface ClubCommitteeProps {
 
 const ClubCommittee: React.FC<ClubCommitteeProps> = ({ user }) => {
   const [events, setEvents] = useState<AppEvent[]>([]);
-  const [venues, setVenues] = useState<ApiVenue[]>([]);
   const [isAddEventOpen, setIsAddEventOpen] = useState(false);
   const [newEvent, setNewEvent] = useState({ name: '', date: '', venue: '' });
   const [isSaving, setIsSaving] = useState(false);
   const navigate = useNavigate();
 
+  const isCommittee = user.name.toLowerCase().includes('committee');
+  const entityType = isCommittee ? 'Committee' : 'Club';
+
   const fetchData = async () => {
     try {
-      const [eventsData, venuesData] = await Promise.all([
-        apiRequest<AppEvent[]>('/api/events', { auth: true }),
-        apiRequest<ApiVenue[]>('/api/venues')
-      ]);
+      const eventsData = await apiRequest<AppEvent[]>('/api/events', { auth: true });
       setEvents(eventsData);
-      setVenues(venuesData);
     } catch (error) {
       toastError(error, 'Failed to fetch data');
     }
@@ -75,28 +57,21 @@ const ClubCommittee: React.FC<ClubCommitteeProps> = ({ user }) => {
     }
   };
 
-  const calendarEvents = events.map(e => ({
-    title: `${e.name} (${e.venue})`,
-    start: new Date(e.date),
-    end: new Date(e.date),
-    allDay: true,
-  }));
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-textPrimary tracking-tight flex items-center gap-2">
             <CalendarIcon className="text-brand" size={28} />
-            Events & Calendar
+            {entityType} Events
           </h1>
           <p className="text-textMuted mt-1 text-sm sm:text-base">
-            Register events and view your club's event calendar.
+            Register and manage your {entityType.toLowerCase()}'s list of events.
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Button onClick={() => navigate('/members')} variant="outline" className="rounded-xl">
-            Edit Committee Members
+            Edit {entityType} Members
           </Button>
           <Button onClick={() => setIsAddEventOpen(true)} className="rounded-xl bg-brand hover:bg-brand/90 text-white font-semibold">
             <Plus size={16} className="mr-1.5" />
@@ -105,15 +80,48 @@ const ClubCommittee: React.FC<ClubCommitteeProps> = ({ user }) => {
         </div>
       </div>
 
-      <div className="bg-card p-6 rounded-xl border border-borderSoft shadow-sm h-[600px]">
-        <Calendar
-          localizer={localizer}
-          events={calendarEvents}
-          startAccessor="start"
-          endAccessor="end"
-          views={['month', 'agenda']}
-          style={{ height: '100%' }}
-        />
+      <div className="bg-card p-6 rounded-xl border border-borderSoft shadow-sm flex flex-col min-h-[400px]">
+        <h3 className="text-lg font-bold text-textPrimary mb-4">Registered Events</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {events.length === 0 ? (
+            <div className="col-span-full text-center py-12">
+              <p className="text-sm text-textMuted">No registered events yet.</p>
+            </div>
+          ) : (
+            events.map(event => (
+              <div key={event.id} className="p-5 rounded-xl border border-borderSoft bg-hoverSoft/20 hover:bg-hoverSoft/40 transition-all flex flex-col justify-between gap-4">
+                <div>
+                  <h4 className="font-semibold text-base text-textPrimary">{event.name}</h4>
+                  <p className="text-xs text-textMuted mt-1">
+                    Date: {new Date(event.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                  </p>
+                  {event.venue && (
+                    <p className="text-xs text-textMuted mt-0.5">
+                      Target Venue: {event.venue}
+                    </p>
+                  )}
+                </div>
+                <Button 
+                  onClick={() => navigate('/book', { 
+                    state: { 
+                      prefill: { 
+                        event_id: event.id,
+                        eventName: event.name,
+                        date: event.date ? event.date.split('T')[0] : '',
+                        venueName: event.venue || ''
+                      } 
+                    } 
+                  })}
+                  size="sm"
+                  className="w-full text-xs rounded-lg font-semibold bg-brand/10 hover:bg-brand/20 text-brand gap-1"
+                >
+                  <Plus size={14} />
+                  Book Slot
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       <Dialog open={isAddEventOpen} onOpenChange={setIsAddEventOpen}>
@@ -143,25 +151,12 @@ const ClubCommittee: React.FC<ClubCommitteeProps> = ({ user }) => {
                 className="rounded-xl"
               />
             </div>
-            <div className="grid gap-2">
-              <Label>Venue</Label>
-              <Select value={newEvent.venue} onValueChange={(v) => setNewEvent({ ...newEvent, venue: v })}>
-                <SelectTrigger className="rounded-xl h-10 border-borderSoft">
-                  <SelectValue placeholder="Select Venue" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  {venues.map(v => (
-                    <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddEventOpen(false)} className="rounded-xl">Cancel</Button>
             <Button 
               onClick={handleCreateEvent} 
-              disabled={isSaving || !newEvent.name || !newEvent.date || !newEvent.venue}
+              disabled={isSaving || !newEvent.name || !newEvent.date}
               className="rounded-xl bg-brand hover:bg-brand/90 text-white font-semibold"
             >
               {isSaving ? 'Creating...' : 'Create Event'}

@@ -5,8 +5,8 @@ import { getClubForUser } from '../utils/clubAuth';
 export const createEvent = async (req: Request, res: Response) => {
   const { name, date, venue } = req.body;
 
-  if (!name || !date || !venue) {
-    return res.status(400).json({ error: 'Name, date, and venue are required' });
+  if (!name || !date) {
+    return res.status(400).json({ error: 'Name and date are required' });
   }
 
   try {
@@ -19,7 +19,7 @@ export const createEvent = async (req: Request, res: Response) => {
       `INSERT INTO events (club_id, name, date, venue)
        VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [club.id, name, date, venue]
+      [club.id, name, date, venue || null]
     );
 
     return res.status(201).json(rows[0]);

@@ -47,7 +47,7 @@ export interface AppEvent {
   club_id: string;
   name: string;
   date: string;
-  venue: string;
+  venue: string | null;
   created_at: string;
   updated_at: string;
 }

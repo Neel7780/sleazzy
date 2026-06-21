@@ -30,14 +30,6 @@ interface LayoutProps {
   onLogout: () => void;
 }
 
-const clubLinks = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/book', label: 'Book Slot', icon: CalendarPlus },
-  { to: '/my-bookings', label: 'My Bookings', icon: CalendarDays },
-  { to: '/committee', label: 'Committee', icon: Users },
-  { to: '/policy', label: 'Policy', icon: FileText },
-];
-
 const adminLinks = [
   { to: '/', label: 'Dashboard', icon: ShieldCheck, end: true },
   { to: '/admin/requests', label: 'Requests', icon: ClipboardList },
@@ -48,7 +40,18 @@ const adminLinks = [
 
 const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
   const location = useLocation();
-  const links = user.role === 'club' ? clubLinks : adminLinks;
+  const isCommittee = user.name.toLowerCase().includes('committee');
+  const clubLabel = isCommittee ? 'Committee' : 'Club';
+
+  const links = user.role === 'club' 
+    ? [
+        { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
+        { to: '/book', label: 'Book Slot', icon: CalendarPlus },
+        { to: '/my-bookings', label: 'My Bookings', icon: CalendarDays },
+        { to: '/members', label: isCommittee ? 'Committee Member' : 'Club Member', icon: Users },
+        { to: '/policy', label: 'Policy', icon: FileText },
+      ]
+    : adminLinks;
 
   React.useEffect(() => {
     if (user.role !== 'club') return;

@@ -22,6 +22,15 @@ import {
   FormLabel,
   FormMessage,
 } from '../components/ui/form';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
+import { Label } from '../components/ui/label';
 
 interface LoginProps {
   // Updated to accept the JWT token as a second argument
@@ -45,6 +54,87 @@ type LoginFormData = z.infer<typeof registrationSchema>;
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState('');
+
+  // Forgot Password state
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotStep, setForgotStep] = useState<1 | 2>(1);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotTempPassword, setForgotTempPassword] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSuccess, setForgotSuccess] = useState('');
+  const [forgotError, setForgotError] = useState('');
+
+  const handleRequestTempPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError('');
+    setForgotSuccess('');
+
+    if (!forgotEmail) {
+      setForgotError('Please enter your email address.');
+      return;
+    }
+
+    setForgotLoading(true);
+    try {
+      const response = await apiRequest<{ message: string }>('/api/auth/forgot-password', {
+        method: 'POST',
+        body: { email: forgotEmail },
+      });
+      setForgotSuccess(response.message || 'A temporary password has been sent to your email.');
+      setForgotStep(2);
+    } catch (err) {
+      console.error(err);
+      setForgotError(getErrorMessage(err, 'Failed to request temporary password.'));
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleTempPasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError('');
+    setForgotSuccess('');
+
+    if (!forgotTempPassword) {
+      setForgotError('Please enter the temporary password.');
+      return;
+    }
+
+    setForgotLoading(true);
+    try {
+      const loginResponse = await apiRequest<{ token: string }>('/api/auth/login', {
+        method: 'POST',
+        body: {
+          email: forgotEmail,
+          password: forgotTempPassword,
+        },
+      });
+
+      if (!loginResponse.token) {
+        throw new Error('Login failed: No token received');
+      }
+
+      localStorage.setItem('jwt_token', loginResponse.token);
+
+      const userProfile = await apiRequest<{
+        id: string;
+        email: string;
+        name: string;
+        role: Role;
+        group?: ClubGroupType;
+      }>('/api/auth/profile', { auth: true });
+
+      toastSuccess(`Welcome back, ${userProfile.name}!`);
+      setForgotOpen(false);
+      onLogin(userProfile, loginResponse.token);
+
+    } catch (err) {
+      console.error(err);
+      setForgotError(getErrorMessage(err, 'Invalid temporary password. Please try again.'));
+    } finally {
+      setForgotLoading(false);
+    }
+  };
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(isRegistering ? registrationSchema : loginSchema),
@@ -223,7 +313,25 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-textSecondary font-semibold text-sm">Password</FormLabel>
+                        <div className="flex justify-between items-center">
+                          <FormLabel className="text-textSecondary font-semibold text-sm">Password</FormLabel>
+                          {!isRegistering && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setForgotError('');
+                                setForgotSuccess('');
+                                setForgotEmail(form.getValues('email') || '');
+                                setForgotTempPassword('');
+                                setForgotStep(1);
+                                setForgotOpen(true);
+                              }}
+                              className="text-xs font-semibold text-brand hover:text-brandLink hover:underline focus:outline-none"
+                            >
+                              Forgot Password?
+                            </button>
+                          )}
+                        </div>
                         <FormControl>
                           <div className="relative">
                             <Lock size={18} className="absolute left-3.5 top-3 text-textMuted z-10" />
@@ -286,6 +394,122 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </div>
         </div>
       </motion.div>
+
+      {/* Forgot Password Dialog */}
+      <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
+        <DialogContent className="sm:max-w-[420px] rounded-2xl bg-white/95 dark:bg-[#0A0F1F]/95 backdrop-blur-xl border border-borderSoft/50 dark:border-white/10 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-textPrimary">
+              {forgotStep === 1 ? 'Reset Password' : 'Enter Temporary Password'}
+            </DialogTitle>
+            <DialogDescription className="text-textMuted mt-1">
+              {forgotStep === 1 
+                ? "Enter your official email address and we'll send you a temporary password to access your account."
+                : `A temporary password has been sent to ${forgotEmail}. Enter it below to sign in directly.`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {forgotStep === 1 ? (
+            <form onSubmit={handleRequestTempPassword} className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="forgot-email" className="text-textSecondary font-semibold text-sm">Email Address</Label>
+                <div className="relative">
+                  <Mail size={18} className="absolute left-3.5 top-3.5 text-textMuted z-10" />
+                  <Input
+                    id="forgot-email"
+                    type="email"
+                    required
+                    placeholder="club_name@dau.ac.in"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    className="pl-11 h-12 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              {forgotError && (
+                <Alert variant="destructive" className="rounded-xl">
+                  <AlertDescription>{forgotError}</AlertDescription>
+                </Alert>
+              )}
+
+              <DialogFooter className="pt-2 sm:space-x-2 flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setForgotOpen(false)}
+                  className="rounded-xl h-11 text-sm font-medium"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={forgotLoading}
+                  className="rounded-xl h-11 text-sm font-semibold bg-linear-to-r from-brand via-[#E84E36] to-[#FDC02F] text-white shadow-md shadow-brand/10 hover:shadow-lg hover:shadow-brand/20 transition-all flex items-center justify-center min-w-[120px]"
+                >
+                  {forgotLoading ? (
+                    <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    'Send Temp Password'
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : (
+            <form onSubmit={handleTempPasswordLogin} className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="forgot-temp-password" className="text-textSecondary font-semibold text-sm">Temporary Password</Label>
+                <div className="relative">
+                  <Lock size={18} className="absolute left-3.5 top-3.5 text-textMuted z-10" />
+                  <Input
+                    id="forgot-temp-password"
+                    type="password"
+                    required
+                    placeholder="Enter temporary password"
+                    value={forgotTempPassword}
+                    onChange={(e) => setForgotTempPassword(e.target.value)}
+                    className="pl-11 h-12 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              {forgotError && (
+                <Alert variant="destructive" className="rounded-xl">
+                  <AlertDescription>{forgotError}</AlertDescription>
+                </Alert>
+              )}
+
+              {forgotSuccess && (
+                <Alert className="rounded-xl border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <AlertDescription>{forgotSuccess}</AlertDescription>
+                </Alert>
+              )}
+
+              <DialogFooter className="pt-2 sm:space-x-2 flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setForgotStep(1)}
+                  className="rounded-xl h-11 text-sm font-medium"
+                >
+                  Back
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={forgotLoading}
+                  className="rounded-xl h-11 text-sm font-semibold bg-linear-to-r from-brand via-[#E84E36] to-[#FDC02F] text-white shadow-md shadow-brand/10 hover:shadow-lg hover:shadow-brand/20 transition-all flex items-center justify-center min-w-[120px]"
+                >
+                  {forgotLoading ? (
+                    <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    'Sign In'
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

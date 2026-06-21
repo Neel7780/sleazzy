@@ -68,6 +68,19 @@ const ClubMembers: React.FC<ClubMembersProps> = ({ user }) => {
   const [isResigning, setIsResigning] = useState(false);
 
   const isClubUser = user?.role === 'club';
+  const getEntityType = () => {
+    if (isClubUser && user?.name) {
+      return user.name.toLowerCase().includes('committee') ? 'Committee' : 'Club';
+    }
+    if (selectedClubId && clubs.length > 0) {
+      const selectedClub = clubs.find(c => c.id === selectedClubId);
+      if (selectedClub) {
+        return selectedClub.name.toLowerCase().includes('committee') ? 'Committee' : 'Club';
+      }
+    }
+    return 'Club';
+  };
+  const entityType = getEntityType();
 
   const fetchMembers = async (clubIdToFetch?: string) => {
     setIsLoading(true);
@@ -332,19 +345,19 @@ const ClubMembers: React.FC<ClubMembersProps> = ({ user }) => {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-textPrimary tracking-tight flex items-center gap-2">
             <Users className="text-brand" size={28} />
-            Club Members
+            {entityType} Members
           </h1>
           <p className="text-textMuted mt-1 text-sm sm:text-base">
             {isClubUser
-              ? 'Manage your committee roster. Add, edit, or remove members as needed.'
-              : 'View committee rosters of different campus clubs.'}
+              ? `Manage your ${entityType.toLowerCase()} roster. Add, edit, or remove members as needed.`
+              : `View ${entityType.toLowerCase()} rosters of different campus clubs.`}
           </p>
         </div>
 
         <div className="flex items-center gap-3 self-start sm:self-center">
           {!isClubUser && clubs.length > 0 && (
             <div className="flex items-center gap-2 bg-card border border-borderSoft rounded-lg px-2 py-1">
-              <Label htmlFor="club-select" className="text-xs text-textMuted shrink-0 font-medium">Club:</Label>
+              <Label htmlFor="club-select" className="text-xs text-textMuted shrink-0 font-medium">{entityType}:</Label>
               <select
                 id="club-select"
                 className="h-8 rounded bg-transparent border-0 text-sm font-semibold text-textPrimary focus:outline-none focus:ring-0 [&>option]:bg-card"
@@ -379,14 +392,14 @@ const ClubMembers: React.FC<ClubMembersProps> = ({ user }) => {
         <div className="space-y-6">
           <Card className="border-borderSoft shadow-sm bg-card/60 backdrop-blur">
             <CardHeader>
-              <CardTitle className="text-lg">Active Committee Members</CardTitle>
+              <CardTitle className="text-lg">Active {entityType} Members</CardTitle>
               <CardDescription>
                 Convenors, core leadership, and active coordinators currently serving their tenure.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {activeMembers.length === 0 ? (
-                <p className="text-sm text-textMuted py-4 text-center">No active committee members listed yet.</p>
+                <p className="text-sm text-textMuted py-4 text-center">No active {entityType.toLowerCase()} members listed yet.</p>
               ) : (
                 activeMembers.map((m) => <MemberRow key={m.id} member={m} editable={isClubUser} />)
               )}
@@ -415,11 +428,11 @@ const ClubMembers: React.FC<ClubMembersProps> = ({ user }) => {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-md rounded-2xl">
           <DialogHeader>
-            <DialogTitle>{editingMember ? 'Edit Member Details' : 'Add Club Member'}</DialogTitle>
+            <DialogTitle>{editingMember ? 'Edit Member Details' : `Add ${entityType} Member`}</DialogTitle>
             <DialogDescription>
               {editingMember 
                 ? `Update information for ${editingMember.full_name}`
-                : 'Enter the committee details to add a new member.'}
+                : `Enter the ${entityType.toLowerCase()} details to add a new member.`}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">

@@ -30,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { Badge } from '../components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../components/ui/dialog';
 import { Calendar } from '../components/ui/calendar';
 import { TimePicker } from '../components/ui/time-picker';
 import { cn } from '@/lib/utils';
@@ -73,6 +74,56 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
     coCurricularLimit: ''
   });
 
+  const [isAddEventOpen, setIsAddEventOpen] = useState(false);
+  const [newEvent, setNewEvent] = useState({ name: '', date: '', venue: '' });
+  const [isSavingEvent, setIsSavingEvent] = useState(false);
+
+  const reloadEvents = async () => {
+    try {
+      const eventsData = await apiRequest<AppEvent[]>('/api/events', { auth: true });
+      setEvents(eventsData);
+      return eventsData;
+    } catch (error) {
+      console.error('Failed to reload events:', error);
+    }
+  };
+
+  const handleCreateEvent = async () => {
+    setIsSavingEvent(true);
+    try {
+      const created = await apiRequest<{ id: string; name: string; date: string }>('/api/events', {
+        method: 'POST',
+        auth: true,
+        body: newEvent,
+      });
+      toastSuccess('Event registered successfully');
+      setIsAddEventOpen(false);
+      setNewEvent({ name: '', date: '', venue: '' });
+      // Reload the events list and pre-fill/select the newly created event
+      const updatedEvents = await reloadEvents();
+      if (updatedEvents && created?.id) {
+        setFormData(prev => ({
+          ...prev,
+          event_id: created.id,
+          eventName: created.name,
+          date: created.date ? created.date.split('T')[0] : prev.date,
+          endDate: created.date ? created.date.split('T')[0] : prev.endDate,
+        }));
+        if (created.date) {
+          const d = new Date(created.date);
+          if (!isNaN(d.getTime())) {
+            setSelectedDate(d);
+            setSelectedEndDate(d);
+          }
+        }
+      }
+    } catch (error) {
+      toastError(error, 'Failed to register event');
+    } finally {
+      setIsSavingEvent(false);
+    }
+  };
+
   useEffect(() => {
     if (currentUser && currentUser.role === 'club') {
       setFormData(prev => ({ ...prev, clubName: currentUser.name }));
@@ -100,7 +151,7 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
     fetchMeta();
   }, []);
 
-  // Handle pre-fill from location state (Request Extra Room)
+  // Handle pre-fill from location state (Request Extra Room / Registered Event Link)
   useEffect(() => {
     const prefill = location.state?.prefill;
     if (prefill) {
@@ -109,11 +160,12 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
         eventName: prefill.eventName || '',
         eventType: prefill.eventType || 'closed_club',
         expectedAttendees: prefill.expectedAttendees || '',
-        date: prefill.date || '',
-        endDate: prefill.date || '',
+        date: prefill.date ? prefill.date.split('T')[0] : '',
+        endDate: prefill.date ? prefill.date.split('T')[0] : '',
         startTime: prefill.startTime || '',
         endTime: prefill.endTime || '',
-        clubName: prefill.clubName || prev.clubName
+        clubName: prefill.clubName || prev.clubName,
+        event_id: prefill.event_id || ''
       }));
 
       if (prefill.date) {
@@ -125,6 +177,33 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
       }
     }
   }, [location.state]);
+
+  // Handle mapping venueName to venueIds once venues list is loaded
+  useEffect(() => {
+    const prefill = location.state?.prefill;
+    if (prefill && prefill.venueName && venues.length > 0) {
+      const matched = venues.find(v => v.name.toLowerCase() === prefill.venueName.toLowerCase());
+      if (matched) {
+        setFormData(prev => ({
+          ...prev,
+          venueIds: [matched.id]
+        }));
+      }
+    }
+  }, [location.state, venues]);
+
+  // Synchronize eventName with the linked event selection
+  useEffect(() => {
+    if (formData.event_id && events.length > 0) {
+      const selectedEvent = events.find(e => e.id === formData.event_id);
+      if (selectedEvent) {
+        setFormData(prev => ({
+          ...prev,
+          eventName: selectedEvent.name
+        }));
+      }
+    }
+  }, [formData.event_id, events]);
 
   // Handle date selection from Calendar
   useEffect(() => {
@@ -644,12 +723,24 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
                 </div>
 
                 <div className="grid grid-cols-1 gap-6">
-                  {currentUser.role === 'club' && events.length > 0 && (
+                  {currentUser.role === 'club' && (
                     <div className="space-y-2.5">
-                      <Label htmlFor="event_id" className="text-textSecondary font-semibold text-sm">Link to Event (Optional)</Label>
-                      <Select value={formData.event_id} onValueChange={(v) => handleChange('event_id', v === 'none' ? '' : v)}>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="event_id" className="text-textSecondary font-semibold text-sm">Link to Event (Optional)</Label>
+                        <Button 
+                          onClick={() => setIsAddEventOpen(true)} 
+                          type="button" 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-7 px-2 text-xs text-brand hover:text-brand/80 hover:bg-brand/10 gap-1 rounded-lg font-semibold"
+                        >
+                          <Plus size={13} />
+                          Register Event
+                        </Button>
+                      </div>
+                      <Select value={formData.event_id || 'none'} onValueChange={(v) => handleChange('event_id', v === 'none' ? '' : v)}>
                         <SelectTrigger id="event_id" className="h-10 border-borderSoft hover:bg-hoverSoft/50 focus:border-brand focus:ring-4 focus:ring-brand/20 transition-all rounded-xl">
-                          <SelectValue placeholder="Select an Event..." />
+                          <SelectValue placeholder={events.length > 0 ? "Select an Event..." : "No events registered yet."} />
                         </SelectTrigger>
                         <SelectContent className="rounded-xl">
                           <SelectItem value="none" className="cursor-pointer">
@@ -671,8 +762,9 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
                       id="eventName"
                       value={formData.eventName}
                       onChange={(e) => handleChange('eventName', e.target.value)}
+                      disabled={!!formData.event_id}
                       placeholder="e.g. Hackathon Kickoff, Tech Summit..."
-                      className="h-10 bg-card border-borderSoft focus:border-brand focus:ring-1 focus:ring-brand text-base rounded-md font-medium shadow-sm transition-all"
+                      className="h-10 bg-card border-borderSoft focus:border-brand focus:ring-1 focus:ring-brand text-base rounded-md font-medium shadow-sm transition-all disabled:opacity-75 disabled:bg-hoverSoft/10"
                     />
                   </div>
 
@@ -1079,6 +1171,51 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
           </form>
         </CardContent>
       </motion.div>
+
+      {/* Dialog for Register Event */}
+      <Dialog open={isAddEventOpen} onOpenChange={setIsAddEventOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl bg-card border border-borderSoft">
+          <DialogHeader>
+            <DialogTitle className="text-textPrimary">Register a New Event</DialogTitle>
+            <DialogDescription className="text-textMuted">
+              Create an event to tie slot bookings to it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="event-name-dialog" className="text-textSecondary">Event Name *</Label>
+              <Input
+                id="event-name-dialog"
+                value={newEvent.name}
+                onChange={e => setNewEvent({ ...newEvent, name: e.target.value })}
+                placeholder="e.g. Annual Tech Fest"
+                className="rounded-xl bg-bgMain border-borderSoft text-textPrimary"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="event-date-dialog" className="text-textSecondary">Date *</Label>
+              <Input
+                id="event-date-dialog"
+                type="date"
+                value={newEvent.date}
+                onChange={e => setNewEvent({ ...newEvent, date: e.target.value })}
+                className="rounded-xl bg-bgMain border-borderSoft text-textPrimary"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setIsAddEventOpen(false)} className="rounded-xl border-borderSoft text-textSecondary hover:bg-hoverSoft">Cancel</Button>
+            <Button 
+              type="button"
+              onClick={handleCreateEvent} 
+              disabled={isSavingEvent || !newEvent.name || !newEvent.date}
+              className="rounded-xl bg-brand hover:bg-brand/90 text-white font-semibold"
+            >
+              {isSavingEvent ? 'Registering...' : 'Register Event'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 };
