@@ -13,7 +13,8 @@ const getApiBaseUrl = () => {
   if (envUrl) return envUrl.replace(/\/$/, '');
   // In dev, use Vite proxy (same origin) to avoid CORS issues when port changes
   if (import.meta.env.DEV) return '';
-  return 'http://127.0.0.1:3000';
+  // In prod the backend serves the frontend on the same origin, so use relative URLs
+  return '';
 };
 
 const getJwtToken = () => {
