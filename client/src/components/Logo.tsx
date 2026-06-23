@@ -20,19 +20,11 @@ export function Logo({ size = 'md', showText = true, className }: LogoProps) {
 
   return (
     <div className={cn('flex items-center', gap, className)}>
-      <span
-        className={cn(
-          'flex shrink-0 items-center justify-center text-white drop-shadow-sm',
-          'bg-linear-to-br from-brand via-[#E84E36] to-[#FDC02F]',
-          'shadow-lg shadow-brand/25',
-          'ring-2 ring-white/25 dark:ring-white/15',
-          box
-        )}
-        role="img"
-        aria-label="DAU logo"
-      >
-        <RiCalendarCheckFill size={icon} aria-hidden />
-      </span>
+      <img
+        src="/sbg_logo.png"
+        alt="SBG logo"
+        className={cn('shrink-0 object-contain rounded-full', box)}
+      />
       {showText && (
         <span
           className={cn(
@@ -42,7 +34,7 @@ export function Logo({ size = 'md', showText = true, className }: LogoProps) {
             'dark:from-brand dark:to-[#FF6B52]'
           )}
         >
-          Sleazzy
+          SBG
         </span>
       )}
     </div>

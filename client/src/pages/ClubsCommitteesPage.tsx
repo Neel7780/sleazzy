@@ -11,6 +11,10 @@ import {
     Search,
     Shield,
     ArrowRight,
+    Globe,
+    Linkedin,
+    Instagram,
+    Youtube,
 } from 'lucide-react';
 import {
     Dialog,
@@ -26,12 +30,23 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Logo } from '../components/Logo';
+import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
+import { getClubLogoUrl, getLogoBgClass } from '../lib/logos';
+import { cn } from '@/lib/utils';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
+import { CLUB_DETAILS } from '../lib/clubDetails';
 
 interface Club {
     id: string;
     name: string;
     email: string;
     group_category: string;
+    description?: string;
+    key_activities?: string;
+    linkedin_url?: string;
+    instagram_url?: string;
+    youtube_url?: string;
+    website_url?: string;
 }
 
 interface CommitteeMember {
@@ -94,11 +109,14 @@ const ClubsCommitteesPage: React.FC<{ onGoToLogin: () => void }> = ({ onGoToLogi
     }, []);
 
     const filteredClubs = useMemo(() => {
-        return clubs.filter(c =>
-            c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            c.email.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-    }, [clubs, searchQuery]);
+        return clubs.filter(c => {
+            const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                  c.email.toLowerCase().includes(searchQuery.toLowerCase());
+            const isCommittee = c.name.toLowerCase().includes('committee');
+            const matchesTab = activeTab === 'clubs' ? !isCommittee : isCommittee;
+            return matchesSearch && matchesTab;
+        });
+    }, [clubs, searchQuery, activeTab]);
 
     const groupedCommittees = useMemo(() => {
         const groups: Record<string, CommitteeMember[]> = {};
@@ -226,54 +244,140 @@ const ClubsCommitteesPage: React.FC<{ onGoToLogin: () => void }> = ({ onGoToLogi
             {/* ====== Club Committee Roster Modal ====== */}
             <Dialog open={!!selectedClubForModal} onOpenChange={(open) => !open && setSelectedClubForModal(null)}>
                 <DialogContent className="sm:max-w-xl rounded-2xl max-h-[85vh] overflow-y-auto bg-card">
-                    <DialogHeader className="border-b border-borderSoft/40 pb-4">
-                        <DialogTitle className="text-xl font-bold text-textPrimary">
-                            {selectedClubForModal?.name}
-                        </DialogTitle>
-                        <DialogDescription className="text-xs text-textMuted mt-1">
-                            Official Campus Committee Roster &bull; Group {selectedClubForModal?.group_category}
-                        </DialogDescription>
+                    <DialogHeader className="border-b border-borderSoft/40 pb-4 flex flex-row items-center gap-4 space-y-0">
+                        <Avatar className={cn("h-14 w-14 border border-borderSoft rounded-2xl shrink-0", getLogoBgClass(selectedClubForModal?.name || ''))}>
+                            <AvatarImage src={getClubLogoUrl(selectedClubForModal?.name || '') || ''} alt={selectedClubForModal?.name} className="object-contain p-1 drop-shadow-[0_1px_1px_rgba(0,0,0,0.12)]" />
+                            <AvatarFallback className="bg-brand text-white font-bold text-lg rounded-2xl flex items-center justify-center">
+                                {selectedClubForModal?.name.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                            <DialogTitle className="text-xl font-bold text-textPrimary truncate">
+                                {selectedClubForModal?.name}
+                            </DialogTitle>
+                            <DialogDescription className="text-xs text-textMuted mt-1">
+                                Official Campus Committee Roster &bull; Group {selectedClubForModal?.group_category}
+                            </DialogDescription>
+                        </div>
                     </DialogHeader>
 
-                    <div className="py-4 space-y-4">
-                        <div className="flex items-center justify-between px-1">
-                            <span className="text-xs font-semibold text-textMuted uppercase tracking-wider">Committee Members</span>
-                            <span className="text-xs text-textMuted font-medium">{selectedClubMembers.length} member{selectedClubMembers.length !== 1 ? 's' : ''}</span>
-                        </div>
+                    <Tabs defaultValue="members" className="w-full mt-4">
+                        <TabsList className="grid w-full grid-cols-2 mb-4 bg-hoverSoft/50 p-1 rounded-xl">
+                            <TabsTrigger value="members" className="rounded-lg py-1.5 text-sm font-medium">Members</TabsTrigger>
+                            <TabsTrigger value="about" className="rounded-lg py-1.5 text-sm font-medium">About</TabsTrigger>
+                        </TabsList>
 
-                        <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
-                            {selectedClubMembers.length === 0 ? (
-                                <div className="text-center py-12 text-textMuted bg-hoverSoft/20 rounded-xl border border-dashed border-borderSoft">
-                                    No committee members listed for this club.
-                                </div>
-                            ) : (
-                                selectedClubMembers.map(member => (
-                                    <div 
-                                        key={member.id} 
-                                        className="p-3.5 rounded-xl border border-borderSoft/60 bg-hoverSoft/15 hover:bg-hoverSoft/30 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                                    >
-                                        <div className="space-y-1">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <span className="font-bold text-textPrimary text-sm sm:text-base">{member.full_name}</span>
-                                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${DESIGNATION_BADGES[member.designation as keyof typeof DESIGNATION_BADGES] || DEFAULT_BADGE_STYLE}`}>
-                                                    {member.designation}
-                                                </span>
-                                            </div>
-                                        </div>
+                        <TabsContent value="members" className="h-[340px] flex flex-col focus-visible:outline-none focus-visible:ring-0 mt-0">
+                            <div className="flex items-center justify-between px-1 mb-3 shrink-0">
+                                <span className="text-xs font-semibold text-textMuted uppercase tracking-wider">Committee Members</span>
+                                <span className="text-xs text-textMuted font-medium">{selectedClubMembers.length} member{selectedClubMembers.length !== 1 ? 's' : ''}</span>
+                            </div>
 
-                                        {member.phone && (
-                                            <a 
-                                                href={`tel:${member.phone}`}
-                                                className="h-8 px-3 rounded-lg border border-borderSoft/60 bg-background hover:bg-hoverSoft hover:text-brand text-xs font-semibold text-textSecondary flex items-center gap-1.5 self-start sm:self-center transition-all shadow-sm"
-                                            >
-                                                <Phone size={12} />
-                                                {member.phone}
-                                            </a>
-                                        )}
+                            <div className="space-y-2.5 flex-1 overflow-y-auto pr-1">
+                                {selectedClubMembers.length === 0 ? (
+                                    <div className="h-full flex flex-col items-center justify-center text-center text-textMuted bg-hoverSoft/20 rounded-xl border border-dashed border-borderSoft p-6">
+                                        No committee members listed for this club.
                                     </div>
-                                ))
-                            )}
-                        </div>
+                                ) : (
+                                    selectedClubMembers.map(member => (
+                                        <div 
+                                            key={member.id} 
+                                            className="p-3.5 rounded-xl border border-borderSoft/60 bg-hoverSoft/15 hover:bg-hoverSoft/30 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                                        >
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="font-bold text-textPrimary text-sm sm:text-base">{member.full_name}</span>
+                                                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${DESIGNATION_BADGES[member.designation as keyof typeof DESIGNATION_BADGES] || DEFAULT_BADGE_STYLE}`}>
+                                                        {member.designation}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {member.phone && (
+                                                <a 
+                                                    href={`tel:${member.phone}`}
+                                                    className="h-8 px-3 rounded-lg border border-borderSoft/60 bg-background hover:bg-hoverSoft hover:text-brand text-xs font-semibold text-textSecondary flex items-center gap-1.5 self-start sm:self-center transition-all shadow-sm"
+                                                >
+                                                    <Phone size={12} />
+                                                    {member.phone}
+                                                </a>
+                                            )}
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </TabsContent>
+
+                        <TabsContent value="about" className="h-[340px] flex flex-col focus-visible:outline-none focus-visible:ring-0 mt-0">
+                            <div className="space-y-4 flex-1 overflow-y-auto pr-1">
+                                <div className="space-y-2">
+                                    <span className="text-xs font-bold text-textMuted uppercase tracking-wider block">Description</span>
+                                    <p className="text-sm text-textSecondary leading-relaxed bg-hoverSoft/15 border border-borderSoft/60 rounded-xl p-3.5">
+                                        {selectedClubForModal?.description || CLUB_DETAILS[selectedClubForModal?.name || '']?.description || "Description not available."}
+                                    </p>
+                                </div>
+                                <div className="space-y-2">
+                                    <span className="text-xs font-bold text-textMuted uppercase tracking-wider block">Key Activities & Events</span>
+                                    <p className="text-sm text-textSecondary leading-relaxed bg-hoverSoft/15 border border-borderSoft/60 rounded-xl p-3.5">
+                                        {selectedClubForModal?.key_activities || CLUB_DETAILS[selectedClubForModal?.name || '']?.keyActivities || "Key activities not available."}
+                                    </p>
+                                </div>
+                                {(selectedClubForModal?.website_url || 
+                                  selectedClubForModal?.linkedin_url || 
+                                  selectedClubForModal?.instagram_url || 
+                                  selectedClubForModal?.youtube_url) && (
+                                    <div className="space-y-2">
+                                        <span className="text-xs font-bold text-textMuted uppercase tracking-wider block">Links & Socials</span>
+                                        <div className="flex flex-wrap gap-2 bg-hoverSoft/15 border border-borderSoft/60 rounded-xl p-3.5">
+                                            {selectedClubForModal?.website_url && (
+                                                <a 
+                                                    href={selectedClubForModal.website_url.startsWith('http') ? selectedClubForModal.website_url : `https://${selectedClubForModal.website_url}`}
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-borderSoft/60 bg-background hover:bg-hoverSoft hover:text-brand text-xs font-semibold text-textSecondary transition-all shadow-sm"
+                                                >
+                                                    <Globe size={13} className="text-textMuted" />
+                                                    Website
+                                                </a>
+                                            )}
+                                            {selectedClubForModal?.linkedin_url && (
+                                                <a 
+                                                    href={selectedClubForModal.linkedin_url.startsWith('http') ? selectedClubForModal.linkedin_url : `https://${selectedClubForModal.linkedin_url}`}
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-borderSoft/60 bg-background hover:bg-hoverSoft hover:text-brand text-xs font-semibold text-textSecondary transition-all shadow-sm"
+                                                >
+                                                    <Linkedin size={13} className="text-textMuted" />
+                                                    LinkedIn
+                                                </a>
+                                            )}
+                                            {selectedClubForModal?.instagram_url && (
+                                                <a 
+                                                    href={selectedClubForModal.instagram_url.startsWith('http') ? selectedClubForModal.instagram_url : `https://${selectedClubForModal.instagram_url}`}
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-borderSoft/60 bg-background hover:bg-hoverSoft hover:text-brand text-xs font-semibold text-textSecondary transition-all shadow-sm"
+                                                >
+                                                    <Instagram size={13} className="text-textMuted" />
+                                                    Instagram
+                                                </a>
+                                            )}
+                                            {selectedClubForModal?.youtube_url && (
+                                                <a 
+                                                    href={selectedClubForModal.youtube_url.startsWith('http') ? selectedClubForModal.youtube_url : `https://${selectedClubForModal.youtube_url}`}
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-borderSoft/60 bg-background hover:bg-hoverSoft hover:text-brand text-xs font-semibold text-textSecondary transition-all shadow-sm"
+                                                >
+                                                    <Youtube size={13} className="text-textMuted" />
+                                                    YouTube
+                                                </a>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </TabsContent>
 
                         {selectedClubForModal?.email && (
                             <div className="pt-4 border-t border-borderSoft/40 flex items-center justify-between">
@@ -285,11 +389,11 @@ const ClubsCommitteesPage: React.FC<{ onGoToLogin: () => void }> = ({ onGoToLogi
                                     className="rounded-xl h-9 px-4 text-xs font-semibold bg-brand text-white hover:bg-brandLink"
                                 >
                                     <Mail size={13} className="mr-1.5" />
-                                    Email Club
+                                    Email Contact
                                 </Button>
                             </div>
                         )}
-                    </div>
+                    </Tabs>
                 </DialogContent>
             </Dialog>
 
@@ -308,9 +412,9 @@ const ClubsCommitteesPage: React.FC<{ onGoToLogin: () => void }> = ({ onGoToLogi
                                 <div key={i} className="h-32 rounded-xl bg-hoverSoft/30 border border-borderSoft animate-pulse" />
                             ))}
                         </motion.div>
-                    ) : activeTab === 'clubs' ? (
+                    ) : (
                         <motion.div
-                            key="clubs"
+                            key={activeTab}
                             initial={{ opacity: 0, y: 15 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -15 }}
@@ -319,7 +423,7 @@ const ClubsCommitteesPage: React.FC<{ onGoToLogin: () => void }> = ({ onGoToLogi
                         >
                             {filteredClubs.length === 0 ? (
                                 <div className="col-span-full py-16 text-center text-textMuted">
-                                    No clubs found matching your search.
+                                    No {activeTab} found matching your search.
                                 </div>
                             ) : (
                                 filteredClubs.map(club => (
@@ -329,14 +433,26 @@ const ClubsCommitteesPage: React.FC<{ onGoToLogin: () => void }> = ({ onGoToLogi
                                         onClick={() => setSelectedClubForModal(club)}
                                         className="rounded-2xl border border-borderSoft bg-card/60 backdrop-blur shadow-sm hover:shadow-md p-5 flex flex-col justify-between transition-all cursor-pointer group"
                                     >
-                                        <div className="space-y-2">
-                                            <div className="flex items-start justify-between gap-3">
-                                                <h3 className="font-bold text-lg text-textPrimary tracking-tight line-clamp-1 group-hover:text-brand transition-colors">{club.name}</h3>
-                                                <span className="shrink-0 inline-flex items-center rounded-full border border-brand/20 bg-brand/5 px-2 py-0.5 text-[10px] font-semibold text-brand">
-                                                    Group {club.group_category}
-                                                </span>
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-3">
+                                                <Avatar className={cn("h-10 w-10 border border-borderSoft rounded-xl shrink-0", getLogoBgClass(club.name))}>
+                                                    <AvatarImage src={getClubLogoUrl(club.name) || ''} alt={club.name} className="object-contain p-1 drop-shadow-[0_1px_1px_rgba(0,0,0,0.12)]" />
+                                                    <AvatarFallback className="bg-brand/10 text-brand font-bold text-sm rounded-xl flex items-center justify-center">
+                                                        {club.name.charAt(0).toUpperCase()}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <h3 className="font-bold text-base text-textPrimary tracking-tight line-clamp-1 group-hover:text-brand transition-colors">{club.name}</h3>
+                                                        <span className="shrink-0 inline-flex items-center rounded-full border border-brand/20 bg-brand/5 px-2 py-0.5 text-[9px] font-semibold text-brand">
+                                                            Group {club.group_category}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-[11px] text-textMuted font-medium mt-0.5">
+                                                        {club.name.toLowerCase().includes('committee') ? 'Official student committee' : 'Official student organization'}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <p className="text-xs text-textMuted font-medium">Official student organization</p>
                                         </div>
                                         
                                         <div className="mt-5 pt-3 border-t border-borderSoft/30 flex items-center justify-between">
@@ -348,76 +464,14 @@ const ClubsCommitteesPage: React.FC<{ onGoToLogin: () => void }> = ({ onGoToLogi
                                                 className="text-xs font-semibold text-textSecondary hover:text-brand flex items-center gap-1.5 transition-colors"
                                             >
                                                 <Mail size={13} />
-                                                Contact Club
+                                                Contact {club.name.toLowerCase().includes('committee') ? 'Committee' : 'Club'}
                                             </button>
                                             <span className="text-[11px] font-semibold text-brand flex items-center gap-0.5 hover:underline">
-                                                View Committee
+                                                View Roster
                                                 <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
                                             </span>
                                         </div>
                                     </motion.div>
-                                ))
-                            )}
-                        </motion.div>
-                    ) : (
-                        <motion.div
-                            key="committees"
-                            initial={{ opacity: 0, y: 15 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -15 }}
-                            transition={{ duration: 0.25 }}
-                            className="space-y-6"
-                        >
-                            {Object.keys(groupedCommittees).length === 0 ? (
-                                <div className="py-16 text-center text-textMuted">
-                                    No committee members found matching your search.
-                                </div>
-                            ) : (
-                                Object.entries(groupedCommittees).map(([clubName, membersList]) => (
-                                    <Card key={clubName} className="border-borderSoft shadow-sm bg-card/60 backdrop-blur">
-                                        <CardHeader 
-                                            onClick={() => {
-                                                const match = clubs.find(c => c.name === clubName);
-                                                if (match) setSelectedClubForModal(match);
-                                            }}
-                                            className="border-b border-borderSoft/30 bg-hoverSoft/10 py-3.5 cursor-pointer hover:bg-hoverSoft/20 transition-all group"
-                                        >
-                                            <CardTitle className="text-base font-bold text-brand flex items-center justify-between">
-                                                <span className="flex items-center gap-2">
-                                                    <Shield size={16} />
-                                                    {clubName}
-                                                </span>
-                                                <span className="text-xs font-semibold text-textMuted group-hover:text-brand flex items-center gap-0.5 transition-colors">
-                                                    View Profile
-                                                    <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
-                                                </span>
-                                            </CardTitle>
-                                        </CardHeader>
-                                        <CardContent className="divide-y divide-borderSoft/20 p-0">
-                                            {membersList.map(member => (
-                                                <div key={member.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-hoverSoft/10 transition-colors">
-                                                    <div className="space-y-1.5">
-                                                        <div className="flex items-center gap-2 flex-wrap">
-                                                            <span className="font-bold text-textPrimary text-sm sm:text-base">{member.full_name}</span>
-                                                            <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${DESIGNATION_BADGES[member.designation as keyof typeof DESIGNATION_BADGES] || DEFAULT_BADGE_STYLE}`}>
-                                                                {member.designation}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-
-                                                    {member.phone && (
-                                                        <a 
-                                                            href={`tel:${member.phone}`}
-                                                            className="h-9 px-3.5 rounded-lg border border-borderSoft/60 bg-background hover:bg-hoverSoft hover:text-brand text-xs font-semibold text-textSecondary flex items-center gap-1.5 self-start sm:self-center transition-all shadow-sm"
-                                                        >
-                                                            <Phone size={13} />
-                                                            {member.phone}
-                                                        </a>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </CardContent>
-                                    </Card>
                                 ))
                             )}
                         </motion.div>

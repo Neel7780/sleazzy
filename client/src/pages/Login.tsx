@@ -228,7 +228,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               >
                 <Logo size="lg" showText={false} />
               </motion.div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-textPrimary tracking-tight">Sleazzy</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-textPrimary tracking-tight">SBG</h1>
               <p className="text-textSecondary mt-2 text-sm font-medium">
                 Slot Booking Made Easy
               </p>

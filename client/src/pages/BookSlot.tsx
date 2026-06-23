@@ -303,7 +303,7 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
     if (hasCategoryB) {
       setWarnings(prev => ({
         ...prev,
-        venue: 'Includes Category B Venue(s): Requires Sleazzy Convener & Faculty Approval.',
+        venue: 'Includes Category B Venue(s): Requires SBG Convener & Faculty Approval.',
         venueType: 'warning'
       }));
     } else {

@@ -25,6 +25,84 @@ router.get('/clubs', async (_req, res) => {
   }
 });
 
+router.get('/clubs/my-club', authMiddleware, async (req, res) => {
+  if (req.user?.role !== 'club') {
+    return res.status(403).json({ error: 'Only club accounts can fetch their details' });
+  }
+
+  try {
+    const { rows } = await db.query(
+      'SELECT * FROM clubs WHERE email = $1 LIMIT 1',
+      [req.user.email]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Club not found for this account' });
+    }
+
+    return res.json(rows[0]);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.patch('/clubs/my-club', authMiddleware, async (req, res) => {
+  if (req.user?.role !== 'club') {
+    return res.status(403).json({ error: 'Only club accounts can edit their about section' });
+  }
+
+  const { description, key_activities, linkedin_url, instagram_url, youtube_url, website_url } = req.body;
+
+  try {
+    const clubResult = await db.query(
+      'SELECT id FROM clubs WHERE email = $1 LIMIT 1',
+      [req.user.email]
+    );
+
+    if (clubResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Club not found for this account' });
+    }
+
+    const clubId = clubResult.rows[0].id;
+
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    const fieldsToUpdate = {
+      description,
+      key_activities,
+      linkedin_url,
+      instagram_url,
+      youtube_url,
+      website_url
+    };
+
+    for (const [key, value] of Object.entries(fieldsToUpdate)) {
+      if (value !== undefined) {
+        updates.push(`${key} = $${paramIndex}`);
+        values.push(value === '' ? null : value);
+        paramIndex++;
+      }
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(clubId);
+
+    const { rows } = await db.query(
+      `UPDATE clubs SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      values
+    );
+
+    return res.json(rows[0]);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/my-bookings', authMiddleware, async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 

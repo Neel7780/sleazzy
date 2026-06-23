@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CalendarPlus, Clock, MapPin, ChevronRight, Info, Users, AlertTriangle, RefreshCw, Plus } from 'lucide-react';
+import { CalendarPlus, Clock, MapPin, ChevronRight, Info, Users, AlertTriangle, RefreshCw, Plus, Globe, Linkedin, Instagram, Youtube } from 'lucide-react';
 import { apiRequest, mapBooking, groupBookings, type ApiBooking, type ApiVenue } from './api';
 import { getErrorMessage } from './errors';
 import { Booking, AppEvent, User } from '../types';
@@ -17,6 +17,9 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
+import { getClubLogoUrl, getLogoBgClass } from './logos';
+import { cn } from '@/lib/utils';
 
 interface ClubDashboardProps {
   user: User;
@@ -159,6 +162,25 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
   const [calendarView, setCalendarView] = React.useState<'global' | 'club'>('global');
   const navigate = useNavigate();
 
+  const [clubDetails, setClubDetails] = React.useState<{
+    description: string;
+    key_activities: string;
+    linkedin_url: string;
+    instagram_url: string;
+    youtube_url: string;
+    website_url: string;
+  } | null>(null);
+  const [isEditAboutOpen, setIsEditAboutOpen] = React.useState(false);
+  const [isSavingAbout, setIsSavingAbout] = React.useState(false);
+  const [editForm, setEditForm] = React.useState({
+    description: '',
+    key_activities: '',
+    linkedin_url: '',
+    instagram_url: '',
+    youtube_url: '',
+    website_url: '',
+  });
+
   const isCommittee = user.name.toLowerCase().includes('committee');
   const entityType = isCommittee ? 'Committee' : 'Club';
 
@@ -166,11 +188,12 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const [venuesData, myBookings, publicBookings, eventsData] = await Promise.all([
+      const [venuesData, myBookings, publicBookings, eventsData, myClubData] = await Promise.all([
         apiRequest<ApiVenue[]>('/api/venues'),
         apiRequest<ApiBooking[]>('/api/my-bookings', { auth: true }),
         apiRequest<ApiBooking[]>('/api/campus-bookings', { auth: true }),
         apiRequest<AppEvent[]>('/api/events', { auth: true }),
+        apiRequest<any>('/api/clubs/my-club', { auth: true }),
       ]);
 
       const mappedMyBookings = myBookings.map(mapBooking);
@@ -180,6 +203,15 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
       setMyEvents(mappedMyBookings);
       setAllEvents(mappedPublicBookings);
       setRegisteredEvents(eventsData);
+      setClubDetails(myClubData);
+      setEditForm({
+        description: myClubData?.description || '',
+        key_activities: myClubData?.key_activities || '',
+        linkedin_url: myClubData?.linkedin_url || '',
+        instagram_url: myClubData?.instagram_url || '',
+        youtube_url: myClubData?.youtube_url || '',
+        website_url: myClubData?.website_url || '',
+      });
     } catch (err) {
       console.error('Failed to fetch events:', err);
       setError(getErrorMessage(err, 'Failed to load events.'));
@@ -208,6 +240,25 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
       toast.error('Failed to register event');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSaveAbout = async () => {
+    setIsSavingAbout(true);
+    try {
+      await apiRequest('/api/clubs/my-club', {
+        method: 'PATCH',
+        auth: true,
+        body: editForm,
+      });
+      toast.success('Club profile updated successfully');
+      setIsEditAboutOpen(false);
+      fetchEvents();
+    } catch (error) {
+      console.error('Failed to update club profile:', error);
+      toast.error('Failed to update club profile');
+    } finally {
+      setIsSavingAbout(false);
     }
   };
 
@@ -375,19 +426,37 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
         transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
       >
-        <div className="min-w-0">
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground tracking-tight truncate">Welcome, {user.name}</h2>
-          <p className="text-muted-foreground mt-2 text-sm sm:text-base font-medium">Manage your events and venue bookings efficiently.</p>
+        <div className="flex items-center gap-4 min-w-0">
+          <Avatar className={cn("h-16 w-16 border-2 border-brand/20 ring-4 ring-brand/5 shrink-0 rounded-2xl", getLogoBgClass(user.name))}>
+            <AvatarImage src={getClubLogoUrl(user.name) || ''} alt={user.name} className="object-contain p-1 drop-shadow-[0_1px_1px_rgba(0,0,0,0.12)]" />
+            <AvatarFallback className="bg-brand text-white font-bold text-xl rounded-2xl flex items-center justify-center">
+              {user.name.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground tracking-tight truncate">Welcome, {user.name}</h2>
+            <p className="text-muted-foreground mt-2 text-sm sm:text-base font-medium">Manage your events and venue bookings efficiently.</p>
+          </div>
         </div>
-        <Button
-          asChild
-          className="w-full sm:w-auto shrink-0 rounded-xl h-11 shadow-lg shadow-primary/20"
-        >
-          <Link to="/book">
-            <CalendarPlus size={20} />
-            <span>Book a New Slot</span>
-          </Link>
-        </Button>
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+          <Button
+            onClick={() => setIsEditAboutOpen(true)}
+            variant="outline"
+            className="w-full sm:w-auto shrink-0 rounded-xl h-11 border-borderSoft hover:bg-hoverSoft font-semibold gap-1.5"
+          >
+            <Info size={18} className="text-brand" />
+            <span>Edit About & Socials</span>
+          </Button>
+          <Button
+            asChild
+            className="w-full sm:w-auto shrink-0 rounded-xl h-11 shadow-lg shadow-primary/20 font-semibold gap-1.5"
+          >
+            <Link to="/book">
+              <CalendarPlus size={20} />
+              <span>Book a New Slot</span>
+            </Link>
+          </Button>
+        </div>
       </motion.div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-6 sm:gap-8">
@@ -681,6 +750,98 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
               className="rounded-xl bg-brand hover:bg-brand/90 text-white font-semibold"
             >
               {isSaving ? 'Registering...' : 'Register Event'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog for Edit About & Socials */}
+      <Dialog open={isEditAboutOpen} onOpenChange={setIsEditAboutOpen}>
+        <DialogContent className="sm:max-w-lg rounded-2xl bg-card border border-borderSoft text-textPrimary max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit {entityType} Profile</DialogTitle>
+            <DialogDescription className="text-textMuted">
+              Update your {entityType.toLowerCase()}'s description, key activities, and social media URLs.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-description" className="text-textSecondary font-semibold">Description</Label>
+              <textarea
+                id="edit-description"
+                value={editForm.description}
+                onChange={e => setEditForm({ ...editForm, description: e.target.value })}
+                placeholder="Briefly describe your club's purpose and mission..."
+                rows={4}
+                className="w-full p-3 rounded-xl bg-bgMain border border-borderSoft text-textPrimary text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 resize-y"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-activities" className="text-textSecondary font-semibold">Key Activities & Events</Label>
+              <textarea
+                id="edit-activities"
+                value={editForm.key_activities}
+                onChange={e => setEditForm({ ...editForm, key_activities: e.target.value })}
+                placeholder="Highlight your club's major events, regular meetings, and annual projects..."
+                rows={3}
+                className="w-full p-3 rounded-xl bg-bgMain border border-borderSoft text-textPrimary text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 resize-y"
+              />
+            </div>
+            <div className="border-t border-borderSoft/40 my-2 pt-4">
+              <h4 className="text-xs font-bold text-textMuted uppercase tracking-wider mb-3">Links & Social Media URLs</h4>
+              <div className="grid gap-3">
+                <div className="grid gap-1">
+                  <Label htmlFor="edit-website" className="text-xs text-textSecondary font-semibold">Website URL</Label>
+                  <Input
+                    id="edit-website"
+                    value={editForm.website_url}
+                    onChange={e => setEditForm({ ...editForm, website_url: e.target.value })}
+                    placeholder="e.g. clubs.daiict.ac.in/myclub"
+                    className="rounded-xl bg-bgMain border-borderSoft text-textPrimary h-9 text-sm"
+                  />
+                </div>
+                <div className="grid gap-1">
+                  <Label htmlFor="edit-linkedin" className="text-xs text-textSecondary font-semibold">LinkedIn URL</Label>
+                  <Input
+                    id="edit-linkedin"
+                    value={editForm.linkedin_url}
+                    onChange={e => setEditForm({ ...editForm, linkedin_url: e.target.value })}
+                    placeholder="e.g. linkedin.com/company/myclub"
+                    className="rounded-xl bg-bgMain border-borderSoft text-textPrimary h-9 text-sm"
+                  />
+                </div>
+                <div className="grid gap-1">
+                  <Label htmlFor="edit-instagram" className="text-xs text-textSecondary font-semibold">Instagram URL</Label>
+                  <Input
+                    id="edit-instagram"
+                    value={editForm.instagram_url}
+                    onChange={e => setEditForm({ ...editForm, instagram_url: e.target.value })}
+                    placeholder="e.g. instagram.com/myclub"
+                    className="rounded-xl bg-bgMain border-borderSoft text-textPrimary h-9 text-sm"
+                  />
+                </div>
+                <div className="grid gap-1">
+                  <Label htmlFor="edit-youtube" className="text-xs text-textSecondary font-semibold">YouTube URL</Label>
+                  <Input
+                    id="edit-youtube"
+                    value={editForm.youtube_url}
+                    onChange={e => setEditForm({ ...editForm, youtube_url: e.target.value })}
+                    placeholder="e.g. youtube.com/@myclub"
+                    className="rounded-xl bg-bgMain border-borderSoft text-textPrimary h-9 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setIsEditAboutOpen(false)} className="rounded-xl border-borderSoft text-textSecondary hover:bg-hoverSoft font-semibold">Cancel</Button>
+            <Button 
+              type="button"
+              onClick={handleSaveAbout} 
+              disabled={isSavingAbout}
+              className="rounded-xl bg-brand hover:bg-brand/90 text-white font-semibold"
+            >
+              {isSavingAbout ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>
