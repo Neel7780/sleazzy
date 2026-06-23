@@ -656,7 +656,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGoToLogin }) => {
             {/* ====== Footer ====== */}
             <footer className="relative z-10 px-4 py-10 text-center text-xs text-textMuted">
                 <p className="font-medium text-textSecondary">
-                    &copy; {new Date().getFullYear()} Sleazzy &middot; Campus Venue Booking
+                    &copy; {new Date().getFullYear()} SBG &middot; Campus Venue Booking
                 </p>
                 <div className="mt-4 flex justify-center">
                     <GdgFooterCredit />

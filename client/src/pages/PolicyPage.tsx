@@ -101,7 +101,7 @@ const PolicyPage: React.FC = () => {
                     <CardDescription className="text-xs">Lecture Theatres (LT), CEP 110, CEP 102</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-muted-foreground">Always requires manual approval from the Sleazzy Convener and Faculty Mentor. Pending status applies until approved.</p>
+                    <p className="text-sm text-muted-foreground">Always requires manual approval from the SBG Convener and Faculty Mentor. Pending status applies until approved.</p>
                   </CardContent>
                 </Card>
               </div>

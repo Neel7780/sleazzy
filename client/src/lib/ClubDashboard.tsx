@@ -17,6 +17,9 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
+import { getClubLogoUrl, getLogoBgClass } from './logos';
+import { cn } from '@/lib/utils';
 
 interface ClubDashboardProps {
   user: User;
@@ -375,9 +378,17 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
         transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
       >
-        <div className="min-w-0">
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground tracking-tight truncate">Welcome, {user.name}</h2>
-          <p className="text-muted-foreground mt-2 text-sm sm:text-base font-medium">Manage your events and venue bookings efficiently.</p>
+        <div className="flex items-center gap-4 min-w-0">
+          <Avatar className={cn("h-16 w-16 border-2 border-brand/20 ring-4 ring-brand/5 shrink-0 rounded-2xl", getLogoBgClass(user.name))}>
+            <AvatarImage src={getClubLogoUrl(user.name) || ''} alt={user.name} className="object-contain p-1 drop-shadow-[0_1px_1px_rgba(0,0,0,0.12)]" />
+            <AvatarFallback className="bg-brand text-white font-bold text-xl rounded-2xl flex items-center justify-center">
+              {user.name.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground tracking-tight truncate">Welcome, {user.name}</h2>
+            <p className="text-muted-foreground mt-2 text-sm sm:text-base font-medium">Manage your events and venue bookings efficiently.</p>
+          </div>
         </div>
         <Button
           asChild

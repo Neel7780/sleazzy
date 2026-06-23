@@ -17,7 +17,8 @@ import { User } from '../types';
 import { Button } from '../components/ui/button';
 import { ThemeToggle } from '../components/theme-toggle';
 import NotificationPanel from '../components/NotificationPanel';
-import { Avatar, AvatarFallback } from '../components/ui/avatar';
+import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
+import { getClubLogoUrl, getLogoBgClass } from '../lib/logos';
 import { Logo } from '../components/Logo';
 import { GdgFooterCredit } from '../components/GdgFooterCredit';
 import { cn } from '@/lib/utils';
@@ -141,8 +142,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
             className="p-3 border-t border-borderSoft"
           >
             <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-hoverSoft transition-colors group">
-              <Avatar className="h-10 w-10 border border-borderSoft shrink-0 shadow-sm transition-all group-hover:border-brand/50 ring-2 ring-brand/10">
-                <AvatarFallback className="bg-brand text-white font-semibold text-sm">
+               <Avatar className={cn("h-10 w-10 border border-borderSoft shrink-0 shadow-sm transition-all group-hover:border-brand/50 ring-2 ring-brand/10", getLogoBgClass(user.name))}>
+                <AvatarImage src={getClubLogoUrl(user.name) || ''} alt={user.name} className="object-contain p-1 drop-shadow-[0_1px_1px_rgba(0,0,0,0.12)]" />
+                <AvatarFallback className="bg-brand text-white font-semibold text-sm flex items-center justify-center">
                   {user.name.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>

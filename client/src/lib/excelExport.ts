@@ -94,5 +94,5 @@ export function exportRosterToExcel(members: ExportClubMember[]) {
   }
 
   // Download the true binary xlsx file
-  XLSX.writeFile(wb, `sleazzy_committee_rosters_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  XLSX.writeFile(wb, `sbg_committee_rosters_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
