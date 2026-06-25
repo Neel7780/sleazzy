@@ -631,7 +631,6 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
                 </div>
 
                 <div className="grid grid-cols-1 gap-6">
-                  {currentUser.role === 'club' && (
                     <div className="space-y-2.5">
                       <div className="flex items-center justify-between">
                         <Label htmlFor="event_id" className="text-textSecondary font-semibold text-sm">Link to Event (Optional)</Label>
@@ -667,7 +666,7 @@ const BookSlot: React.FC<BookSlotProps> = ({ currentUser }) => {
                         </SelectContent>
                       </Select>
                     </div>
-                  )}
+
 
                   <div className="space-y-2.5">
                     <Label htmlFor="expectedAttendees" className="text-textSecondary font-semibold text-sm">Expected Attendees *</Label>
