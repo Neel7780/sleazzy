@@ -51,6 +51,7 @@ export interface AppEvent {
   venue: string | null;
   dynamic_end_date?: string;
   event_type?: EventType;
+  status?: BookingStatus | string;
   created_at: string;
   updated_at: string;
 }
