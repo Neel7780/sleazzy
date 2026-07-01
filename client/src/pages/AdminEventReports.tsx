@@ -5,20 +5,37 @@ import { GlassCard } from '../components/glass-card';
 import { GradientBackground } from '../components/gradient-background';
 import { toastError } from '../lib/toast';
 import { toast } from 'sonner';
+import { Settings } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 
 export default function AdminEventReports() {
   const [reports, setReports] = useState<any[]>([]);
   const [pastEvents, setPastEvents] = useState<any[]>([]);
   const [tab, setTab] = useState<'submitted' | 'tracking' | 'exempt'>('submitted');
   const [loading, setLoading] = useState(true);
+  
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState({
+    event_report_format_link: '',
+    awards_format_link: ''
+  });
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const s = await apiRequest<any[]>('/api/event-reports', { auth: true });
       const p = await apiRequest<any[]>('/api/event-reports/all-past-events', { auth: true });
+      const config = await apiRequest<Record<string, string>>('/api/settings', { auth: true }).catch(() => ({} as Record<string, string>));
+      
       setReports(s);
       setPastEvents(p);
+      setSettings({
+        event_report_format_link: config.event_report_format_link || '',
+        awards_format_link: config.awards_format_link || ''
+      });
     } catch (e: any) {
       toastError('Failed to fetch admin reports data', e);
     } finally {
@@ -68,6 +85,23 @@ export default function AdminEventReports() {
     }
   };
 
+  const saveSettings = async () => {
+    setSavingSettings(true);
+    try {
+      await apiRequest('/api/settings', {
+        method: 'POST',
+        auth: true,
+        body: settings
+      });
+      toast.success('Settings saved successfully');
+      setIsSettingsOpen(false);
+    } catch (error: any) {
+      toastError('Failed to save settings', error);
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
   if (loading) return <div>Loading...</div>;
 
   return (
@@ -79,9 +113,15 @@ export default function AdminEventReports() {
             <h1 className="text-3xl font-bold tracking-tight text-textPrimary leading-tight">All Event Reports</h1>
             <p className="text-textMuted max-w-3xl">Manage and export all club event reports.</p>
           </div>
-          {tab === 'submitted' && (
-            <Button onClick={handleExport}>Export to Excel</Button>
-          )}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsSettingsOpen(true)}>
+              <Settings className="w-4 h-4 mr-2" />
+              Formats
+            </Button>
+            {tab === 'submitted' && (
+              <Button onClick={handleExport}>Export to Excel</Button>
+            )}
+          </div>
         </div>
 
         <div className="flex gap-4 border-b border-borderSoft pb-2">
@@ -204,6 +244,40 @@ export default function AdminEventReports() {
           </div>
         )}
       </div>
+
+      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Update Format Links</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label>Event Report Format Link</Label>
+              <Input 
+                type="url" 
+                value={settings.event_report_format_link} 
+                onChange={e => setSettings({...settings, event_report_format_link: e.target.value})} 
+                placeholder="https://docs.google.com/..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Awards Format Link</Label>
+              <Input 
+                type="url" 
+                value={settings.awards_format_link} 
+                onChange={e => setSettings({...settings, awards_format_link: e.target.value})} 
+                placeholder="https://docs.google.com/..."
+              />
+            </div>
+          </div>
+          <DialogFooter className="mt-6">
+            <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>
+            <Button onClick={saveSettings} disabled={savingSettings}>
+              {savingSettings ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

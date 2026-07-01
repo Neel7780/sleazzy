@@ -15,6 +15,7 @@ export default function EventReports() {
   const [submitted, setSubmitted] = useState<any[]>([]);
   const [tab, setTab] = useState<'pending' | 'submitted'>('pending');
   const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState<Record<string, string>>({});
 
   // Form State
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -33,8 +34,10 @@ export default function EventReports() {
     try {
       const p = await apiRequest<any[]>('/api/event-reports/pending', { auth: true });
       const s = await apiRequest<any[]>('/api/event-reports', { auth: true });
+      const settingsData = await apiRequest<Record<string, string>>('/api/settings', { auth: false }).catch(() => ({} as Record<string, string>));
       setPending(p);
       setSubmitted(s);
+      setSettings(settingsData);
     } catch (e: any) {
       toastError('Failed to fetch event reports', e);
     } finally {
@@ -130,6 +133,31 @@ export default function EventReports() {
         <p className="text-textMuted max-w-3xl">
           Submit reports for your past events. If reports are overdue (7 days or end of month), you will not be able to make new bookings.
         </p>
+
+        {(settings.event_report_format_link || settings.awards_format_link) && (
+          <div className="flex gap-4">
+            {settings.event_report_format_link && (
+              <a 
+                href={settings.event_report_format_link} 
+                target="_blank" 
+                rel="noreferrer" 
+                className="text-brand hover:underline text-sm font-medium"
+              >
+                Event Report Format 
+              </a>
+            )}
+            {settings.awards_format_link && (
+              <a 
+                href={settings.awards_format_link} 
+                target="_blank" 
+                rel="noreferrer" 
+                className="text-brand hover:underline text-sm font-medium"
+              >
+                Awards Format 
+              </a>
+            )}
+          </div>
+        )}
 
         <div className="flex gap-4 border-b border-borderSoft pb-2">
           <button
