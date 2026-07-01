@@ -19,6 +19,26 @@ import {
     DialogTitle,
 } from '../components/ui/dialog';
 
+let preloadedAboutData: { clubs: Club[], members: Member[], stats: Record<string, number>, settings: Record<string, string> } | null = null;
+let preloadAboutPromise: Promise<any> | null = null;
+
+export const preloadAboutSBG = () => {
+    if (preloadedAboutData || preloadAboutPromise) return preloadAboutPromise;
+    preloadAboutPromise = Promise.all([
+        apiRequest<Club[]>('/api/clubs'),
+        apiRequest<Member[]>('/api/club-members/public'),
+        apiRequest<Record<string, number>>('/api/clubs/stats'),
+        apiRequest<Record<string, string>>('/api/settings').catch(() => ({} as Record<string, string>)),
+    ]).then(([clubsData, membersData, statsData, settingsData]) => {
+        preloadedAboutData = { clubs: clubsData, members: membersData, stats: statsData, settings: settingsData };
+        return preloadedAboutData;
+    });
+    return preloadAboutPromise;
+};
+
+// Start fetching the data immediately as soon as the JS bundle loads!
+preloadAboutSBG();
+
 interface Club {
     id: string;
     name: string;
@@ -157,26 +177,34 @@ const AboutSBG: React.FC<{ onGoToLogin: () => void }> = ({ onGoToLogin }) => {
     }, [isMobileMenuOpen]);
 
     useEffect(() => {
+        let mounted = true;
         const fetchData = async () => {
+            if (preloadedAboutData) {
+                setClubs(preloadedAboutData.clubs);
+                setMembers(preloadedAboutData.members);
+                setStats(preloadedAboutData.stats);
+                setSettings(preloadedAboutData.settings);
+                setLoading(false);
+                return;
+            }
+            
             setLoading(true);
             try {
-                const [clubsData, membersData, statsData, settingsData] = await Promise.all([
-                    apiRequest<Club[]>('/api/clubs'),
-                    apiRequest<Member[]>('/api/club-members/public'),
-                    apiRequest<Record<string, number>>('/api/clubs/stats'),
-                    apiRequest<Record<string, string>>('/api/settings').catch(() => ({} as Record<string, string>)),
-                ]);
-                setClubs(clubsData);
-                setMembers(membersData);
-                setStats(statsData);
-                setSettings(settingsData);
+                const data = await preloadAboutSBG();
+                if (mounted && data) {
+                    setClubs(data.clubs);
+                    setMembers(data.members);
+                    setStats(data.stats);
+                    setSettings(data.settings);
+                }
             } catch (err) {
                 console.error('Failed to fetch about data:', err);
             } finally {
-                setLoading(false);
+                if (mounted) setLoading(false);
             }
         };
         fetchData();
+        return () => { mounted = false; };
     }, []);
 
     const sbgClub = useMemo(() => clubs.find(c => c.organization_type === 'other' && c.name.toLowerCase().includes('sbg')), [clubs]);
@@ -374,7 +402,7 @@ const AboutSBG: React.FC<{ onGoToLogin: () => void }> = ({ onGoToLogin }) => {
                                         </div>
                                         <div className="flex items-center gap-3 rounded-xl border border-borderSoft/60 bg-card hover:bg-hoverSoft/20 transition-all px-4 py-3 shadow-sm relative z-10">
                                             <span className="h-9 w-9 rounded-lg bg-card border border-brand/20 flex items-center justify-center shrink-0 p-1.5">
-                                                <img src="/sbg_logo.png" alt="SBG" className="w-full h-full object-contain" />
+                                                <img src={sbgClub?.logo_url || "/sbg_logo.png"} alt="SBG" className="w-full h-full object-contain" />
                                             </span>
                                             <div className="min-w-0">
                                                 <p className="font-semibold text-textPrimary text-sm">Student Body Government (SBG)</p>
@@ -396,9 +424,15 @@ const AboutSBG: React.FC<{ onGoToLogin: () => void }> = ({ onGoToLogin }) => {
                                             onClick={() => setEcModalOpen(true)}
                                             className="flex items-center gap-3 rounded-xl border border-borderSoft/60 bg-card hover:bg-hoverSoft/40 hover:border-violet-500/30 transition-all px-4 py-3 text-left w-full cursor-pointer shadow-sm relative z-10"
                                         >
-                                            <span className="h-9 w-9 rounded-lg bg-violet-500/15 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0">
-                                                <Building2 size={16} />
-                                            </span>
+                                            {ecClub?.logo_url ? (
+                                                <span className="h-9 w-9 rounded-lg bg-card border border-brand/20 flex items-center justify-center shrink-0 p-1.5">
+                                                    <img src={ecClub.logo_url} alt="EC" className="w-full h-full object-contain" />
+                                                </span>
+                                            ) : (
+                                                <span className="h-9 w-9 rounded-lg bg-violet-500/15 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0">
+                                                    <Building2 size={16} />
+                                                </span>
+                                            )}
                                             <div className="min-w-0 flex-1">
                                                 <p className="font-semibold text-textPrimary text-sm">Election Commission (EC)</p>
                                                 <p className="text-xs text-textMuted">{ecMembers.length} commissioners</p>

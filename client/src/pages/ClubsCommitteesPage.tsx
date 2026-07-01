@@ -207,7 +207,7 @@ const ClubsCommitteesPage: React.FC<{ onGoToLogin: () => void }> = ({ onGoToLogi
     };
 
     return (
-        <div className="min-h-screen relative overflow-clip bg-bgMain pb-16">
+        <div className="min-h-screen bg-bgMain pb-16">
             <header ref={headerRef} className="sticky top-0 z-30 bg-bgMain/80 backdrop-blur-xl border-b border-borderSoft/40">
                 <div className="flex items-center justify-between px-3 sm:px-6 py-3 max-w-7xl mx-auto">
                     {/* Left: Logo & Nav Links */}
