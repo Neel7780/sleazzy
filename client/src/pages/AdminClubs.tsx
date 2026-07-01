@@ -12,6 +12,7 @@ import { Label } from '../components/ui/label';
 import { Skeleton } from '../components/ui/skeleton';
 import { Edit2, Trash2, CalendarDays, ExternalLink, X, Search, Users, Download, Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../components/ui/sheet';
 import { AppEvent } from '../types';
 import { exportRosterToExcel, ExportClubMember } from '../lib/excelExport';
@@ -21,6 +22,8 @@ interface ApiClub {
     name: string;
     email: string;
     group_category: string;
+    organization_type: string;
+    member_tag?: string;
     created_at: string;
 }
 
@@ -33,7 +36,7 @@ const AdminClubs: React.FC = () => {
     // Edit State
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [editingClub, setEditingClub] = useState<ApiClub | null>(null);
-    const [editFormData, setEditFormData] = useState({ name: '', groupCategory: '' });
+    const [editFormData, setEditFormData] = useState({ name: '', groupCategory: '', organizationType: 'club', memberTag: '' });
     const [isSaving, setIsSaving] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
 
@@ -126,7 +129,12 @@ const AdminClubs: React.FC = () => {
 
     const handleEditClick = (club: ApiClub) => {
         setEditingClub(club);
-        setEditFormData({ name: club.name, groupCategory: club.group_category || 'A' });
+        setEditFormData({ 
+            name: club.name, 
+            groupCategory: club.group_category || 'A',
+            organizationType: club.organization_type || 'club',
+            memberTag: club.member_tag || ''
+        });
         setEditDialogOpen(true);
     };
 
@@ -140,6 +148,8 @@ const AdminClubs: React.FC = () => {
                 body: {
                     name: editFormData.name,
                     group_category: editFormData.groupCategory,
+                    organization_type: editFormData.organizationType,
+                    member_tag: editFormData.memberTag,
                 },
             });
             toastSuccess('Club updated successfully');
@@ -202,7 +212,7 @@ const AdminClubs: React.FC = () => {
         >
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
-                    <h2 className="text-3xl sm:text-4xl font-extrabold text-foreground tracking-tighter">Manage Clubs</h2>
+                    <h2 className="text-3xl sm:text-4xl font-extrabold text-foreground tracking-tighter leading-tight max-w-full break-words">Manage Clubs</h2>
                     <p className="text-textSecondary mt-2 text-base font-medium">View, edit, or remove clubs from the system.</p>
                 </div>
                 <div className="flex items-center gap-2.5 self-start md:self-end">
@@ -216,7 +226,7 @@ const AdminClubs: React.FC = () => {
                     <Button
                         onClick={handleExportRoster}
                         disabled={isExporting}
-                        className="gap-2 rounded-xl h-10 font-semibold border border-borderSoft bg-card text-textSecondary hover:bg-hoverSoft shadow-sm"
+                        className="gap-2 rounded-xl h-10 font-semibold border-[1.5px] border-slate-300 dark:border-slate-600 bg-card text-textSecondary hover:bg-hoverSoft shadow-sm"
                     >
                         <Download size={16} />
                         {isExporting ? 'Exporting...' : 'Export Roster (Excel)'}
@@ -225,12 +235,12 @@ const AdminClubs: React.FC = () => {
             </div>
 
             <Card className="border border-borderSoft rounded-lg overflow-hidden bg-card shadow-sm">
-                <div className="p-4 border-b border-borderSoft flex items-center bg-card/50">
-                    <div className="relative flex-1 max-w-sm">
+                <div className="p-4 border-b border-borderSoft flex flex-col sm:flex-row sm:items-center bg-card/50">
+                    <div className="relative w-full sm:max-w-sm">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-textMuted h-4 w-4" />
                         <Input
                             placeholder="Search clubs by name or email..."
-                            className="pl-9 bg-background/50 border-borderSoft"
+                            className="pl-9 bg-background/50 border-borderSoft w-full max-w-full"
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
                         />
@@ -380,16 +390,19 @@ const AdminClubs: React.FC = () => {
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="add-category">Group Category</Label>
-                            <select
-                                id="add-category"
-                                className="flex h-10 w-full rounded-lg border border-borderSoft bg-transparent px-3 py-2 text-sm text-textPrimary focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand [&>option]:bg-popover"
+                            <Select
                                 value={addFormData.groupCategory}
-                                onChange={e => setAddFormData({ ...addFormData, groupCategory: e.target.value })}
+                                onValueChange={v => setAddFormData({ ...addFormData, groupCategory: v })}
                             >
-                                <option value="A">Group A (Academic/Tech)</option>
-                                <option value="B">Group B (Cultural)</option>
-                                <option value="C">Group C (Sports)</option>
-                            </select>
+                                <SelectTrigger id="add-category" className="w-full h-10 border-borderSoft bg-transparent">
+                                    <SelectValue placeholder="Select Category" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-popover border-borderSoft">
+                                    <SelectItem value="A">Group A (Academic/Tech)</SelectItem>
+                                    <SelectItem value="B">Group B (Cultural)</SelectItem>
+                                    <SelectItem value="C">Group C (Sports)</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
                     <DialogFooter>
@@ -419,16 +432,46 @@ const AdminClubs: React.FC = () => {
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="category">Group Category</Label>
-                            <select
-                                id="category"
-                                className="flex h-10 w-full rounded-lg border border-borderSoft bg-transparent px-3 py-2 text-sm text-textPrimary focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand [&>option]:bg-popover"
+                            <Select
                                 value={editFormData.groupCategory}
-                                onChange={e => setEditFormData({ ...editFormData, groupCategory: e.target.value })}
+                                onValueChange={v => setEditFormData({ ...editFormData, groupCategory: v })}
                             >
-                                <option value="A">Group A (Academic/Tech)</option>
-                                <option value="B">Group B (Cultural)</option>
-                                <option value="C">Group C (Sports)</option>
-                            </select>
+                                <SelectTrigger id="category" className="w-full h-10 border-borderSoft bg-transparent">
+                                    <SelectValue placeholder="Select Category" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-popover border-borderSoft">
+                                    <SelectItem value="A">Group A (Academic/Tech)</SelectItem>
+                                    <SelectItem value="B">Group B (Cultural)</SelectItem>
+                                    <SelectItem value="C">Group C (Sports)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="org-type">Organization Type</Label>
+                            <Select
+                                value={editFormData.organizationType}
+                                onValueChange={v => setEditFormData({ ...editFormData, organizationType: v })}
+                            >
+                                <SelectTrigger id="org-type" className="w-full h-10 border-borderSoft bg-transparent">
+                                    <SelectValue placeholder="Select Org Type" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-popover border-borderSoft">
+                                    <SelectItem value="club">Club</SelectItem>
+                                    <SelectItem value="committee">Committee</SelectItem>
+                                    <SelectItem value="organisation">Organisation</SelectItem>
+                                    <SelectItem value="other">Other (Hidden from directory)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="member-tag">Member Tag (Max 30 chars)</Label>
+                            <Input
+                                id="member-tag"
+                                placeholder="e.g. Official Campus Committee"
+                                maxLength={30}
+                                value={editFormData.memberTag}
+                                onChange={e => setEditFormData({ ...editFormData, memberTag: e.target.value })}
+                            />
                         </div>
                     </div>
                     <DialogFooter>

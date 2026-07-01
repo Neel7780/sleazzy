@@ -32,6 +32,7 @@ import {
   DialogTitle,
 } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 
 interface LoginProps {
   // Updated to accept the JWT token as a second argument
@@ -244,7 +245,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               </motion.div>
               <h1 className="text-2xl sm:text-3xl font-bold text-textPrimary tracking-tight">SBG</h1>
               <p className="text-textSecondary mt-2 text-sm font-medium">
-                Slot Booking Made Easy
+                Campus Life Made Easy
               </p>
             </div>
 
@@ -284,14 +285,18 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                           <FormItem>
                             <FormLabel className="text-textSecondary font-semibold text-sm">Group Category</FormLabel>
                             <FormControl>
-                              <select
-                                className="flex h-11 w-full rounded-xl border border-borderSoft bg-transparent px-3 py-2 text-sm text-textPrimary placeholder:text-textMuted focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:cursor-not-allowed disabled:opacity-50 appearance-none [&>option]:bg-popover"
-                                {...field}
-                              >
-                                <option value="A">Group A (Academic/Tech)</option>
-                                <option value="B">Group B (Cultural)</option>
-                                <option value="C">Group C (Sports)</option>
-                              </select>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger className="h-11 rounded-xl border border-borderSoft bg-transparent px-3 py-2 text-sm text-textPrimary placeholder:text-textMuted focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand w-full">
+                                    <SelectValue placeholder="Select group category" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent className="bg-popover border-borderSoft">
+                                  <SelectItem value="A">Group A (Academic/Tech)</SelectItem>
+                                  <SelectItem value="B">Group B (Cultural)</SelectItem>
+                                  <SelectItem value="C">Group C (Sports)</SelectItem>
+                                </SelectContent>
+                              </Select>
                             </FormControl>
                             <FormMessage />
                           </FormItem>

@@ -313,11 +313,13 @@ router.get('/clubs', async (_req, res) => {
 
 router.patch('/clubs/:id', async (req, res) => {
   const { id } = req.params;
-  const { name, group_category } = req.body;
+  const { name, group_category, organization_type, member_tag } = req.body;
 
   const updateFields: Record<string, any> = {};
   if (name !== undefined) updateFields.name = name;
   if (group_category !== undefined) updateFields.group_category = group_category;
+  if (organization_type !== undefined) updateFields.organization_type = organization_type;
+  if (member_tag !== undefined) updateFields.member_tag = member_tag;
 
   if (Object.keys(updateFields).length === 0) return res.status(400).json({ error: 'No fields to update' });
 

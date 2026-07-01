@@ -76,7 +76,7 @@ export default function AdminEventReports() {
       <div className="relative z-10 space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-textPrimary">All Event Reports</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-textPrimary leading-tight max-w-full break-words">All Event Reports</h1>
             <p className="text-textMuted max-w-3xl">Manage and export all club event reports.</p>
           </div>
           {tab === 'submitted' && (
@@ -109,11 +109,14 @@ export default function AdminEventReports() {
           <div className="space-y-4">
             {reports.map(r => (
               <GlassCard key={r.id} className="p-4 space-y-2">
-                <div className="flex justify-between">
-                  <h3 className="font-semibold text-lg">{r.event_name} <span className="text-sm font-normal text-textMuted ml-2">by {r.club_name}</span></h3>
-                  <span className="text-sm bg-brand/10 text-brand px-2 py-1 rounded-md capitalize">{r.level}</span>
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                  <h3 className="font-semibold text-lg leading-tight break-words">
+                    {r.event_name} 
+                    <span className="block sm:inline text-sm font-normal text-textMuted sm:ml-2">by {r.club_name}</span>
+                  </h3>
+                  <span className="text-sm bg-brand/10 text-brand px-2 py-1 rounded-md capitalize self-start shrink-0">{r.level}</span>
                 </div>
-                <p className="text-sm text-textMuted">Submitted on: {new Date(r.created_at).toLocaleDateString()} | Event Date: {new Date(r.date).toLocaleDateString()}</p>
+                <p className="text-sm text-textMuted mt-1">Submitted: {new Date(r.created_at).toLocaleDateString()} | Event: {new Date(r.date).toLocaleDateString()}</p>
                 <div className="flex flex-wrap gap-4 text-sm mt-2">
                   <a href={r.report_doc_link} target="_blank" rel="noreferrer" className="text-brand hover:underline">Report Doc</a>
                   <a href={r.photos_drive_link} target="_blank" rel="noreferrer" className="text-brand hover:underline">Photos</a>

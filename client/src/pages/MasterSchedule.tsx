@@ -11,6 +11,7 @@ import { Input } from '../components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
 import { Button } from '../components/ui/button';
 import EditBookingDialog from '../components/EditBookingDialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { GroupedBooking } from '../types';
 
 type SortField = 'date' | 'eventName' | 'status';
@@ -151,7 +152,7 @@ const MasterSchedule: React.FC = () => {
             >
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="min-w-0">
-                        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">Master Schedule</h1>
+                        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight leading-tight max-w-full break-words">Master Schedule</h1>
                         <p className="text-textMuted text-sm sm:text-base mt-1">View all venue bookings across the campus.</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto shrink-0">
@@ -166,46 +167,30 @@ const MasterSchedule: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                             <div className="relative flex-1 sm:flex-none">
-                                <select
-                                    value={selectedVenue}
-                                    onChange={(e) => setSelectedVenue(e.target.value)}
-                                    className="
-                                    w-full appearance-none rounded-xl
-                                    px-3 pr-8 py-2 text-sm cursor-pointer
-                                    bg-[var(--card)] text-[var(--textPrimary)]
-                                    border border-[var(--borderSoft)]
-                                    focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand
-                                    transition-all duration-200
-                                    [&>option]:bg-[var(--popover)] [&>option]:text-[var(--popover-foreground)]
-                                "
-                                >
-                                    <option value="all">All Venues</option>
-                                    {venueNames.map(name => (
-                                        <option key={name} value={name}>{name}</option>
-                                    ))}
-                                </select>
-                                <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-textMuted pointer-events-none" />
+                                <Select value={selectedVenue} onValueChange={setSelectedVenue}>
+                                    <SelectTrigger className="w-full sm:w-[150px] h-9 rounded-xl border border-borderSoft bg-card text-textPrimary focus:ring-brand/40">
+                                        <SelectValue placeholder="All Venues" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-popover border-borderSoft max-h-[300px]">
+                                        <SelectItem value="all">All Venues</SelectItem>
+                                        {venueNames.map(name => (
+                                            <SelectItem key={name} value={name}>{name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="relative flex-1 sm:flex-none">
-                                <select
-                                    value={selectedClub}
-                                    onChange={(e) => setSelectedClub(e.target.value)}
-                                    className="
-                                    w-full appearance-none rounded-xl
-                                    px-3 pr-8 py-2 text-sm cursor-pointer
-                                    bg-[var(--card)] text-[var(--textPrimary)]
-                                    border border-[var(--borderSoft)]
-                                    focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand
-                                    transition-all duration-200
-                                    [&>option]:bg-[var(--popover)] [&>option]:text-[var(--popover-foreground)]
-                                "
-                                >
-                                    <option value="all">All Clubs</option>
-                                    {clubNames.map(name => (
-                                        <option key={name} value={name}>{name}</option>
-                                    ))}
-                                </select>
-                                <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-textMuted pointer-events-none" />
+                                <Select value={selectedClub} onValueChange={setSelectedClub}>
+                                    <SelectTrigger className="w-full sm:w-[150px] h-9 rounded-xl border border-borderSoft bg-card text-textPrimary focus:ring-brand/40">
+                                        <SelectValue placeholder="All Clubs" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-popover border-borderSoft max-h-[300px]">
+                                        <SelectItem value="all">All Clubs</SelectItem>
+                                        {clubNames.map(name => (
+                                            <SelectItem key={name} value={name}>{name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
                     </div>

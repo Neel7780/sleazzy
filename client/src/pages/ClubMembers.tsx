@@ -19,6 +19,13 @@ import {
   DialogFooter,
   DialogDescription,
 } from '../components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
 
 interface ApiClub {
   id: string;
@@ -343,9 +350,9 @@ const ClubMembers: React.FC<ClubMembersProps> = ({ user }) => {
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
       >
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-textPrimary tracking-tight flex items-center gap-2">
-            <Users className="text-brand" size={28} />
-            {entityType} Members
+          <h1 className="text-2xl sm:text-3xl font-bold text-textPrimary tracking-tight flex items-center gap-2 leading-tight max-w-full break-words">
+            <Users className="text-brand shrink-0" size={28} />
+            <span className="break-words whitespace-normal">{entityType} Members</span>
           </h1>
           <p className="text-textMuted mt-1 text-sm sm:text-base">
             {isClubUser
@@ -354,22 +361,22 @@ const ClubMembers: React.FC<ClubMembersProps> = ({ user }) => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 self-start sm:self-center">
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto sm:self-center max-w-full">
           {!isClubUser && clubs.length > 0 && (
-            <div className="flex items-center gap-2 bg-card border border-borderSoft rounded-lg px-2 py-1">
+            <div className="flex items-center gap-2 w-full sm:w-auto max-w-full">
               <Label htmlFor="club-select" className="text-xs text-textMuted shrink-0 font-medium">{entityType}:</Label>
-              <select
-                id="club-select"
-                className="h-8 rounded bg-transparent border-0 text-sm font-semibold text-textPrimary focus:outline-none focus:ring-0 [&>option]:bg-card"
-                value={selectedClubId}
-                onChange={(e) => handleClubChange(e.target.value)}
-              >
-                {clubs.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              <Select value={selectedClubId} onValueChange={handleClubChange}>
+                <SelectTrigger id="club-select" className="h-9 w-full sm:w-[200px] bg-card border-borderSoft focus:ring-brand/30">
+                  <SelectValue placeholder={`Select a ${entityType.toLowerCase()}`} />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-borderSoft max-h-[300px]">
+                  {clubs.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 

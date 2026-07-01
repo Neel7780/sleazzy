@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
-import { getClubLogoUrl, getLogoBgClass } from './logos';
+
 import { cn } from '@/lib/utils';
 
 interface ClubDashboardProps {
@@ -167,6 +167,7 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
     youtube_url: string;
     website_url: string;
     logo_url?: string;
+    member_tag?: string;
   } | null>(null);
   const [isEditAboutOpen, setIsEditAboutOpen] = React.useState(false);
   const [isSavingAbout, setIsSavingAbout] = React.useState(false);
@@ -178,6 +179,7 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
     youtube_url: '',
     website_url: '',
     logo_url: '',
+    member_tag: '',
   });
 
   const isCommittee = user.name.toLowerCase().includes('committee');
@@ -211,6 +213,7 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
         youtube_url: myClubData?.youtube_url || '',
         website_url: myClubData?.website_url || '',
         logo_url: myClubData?.logo_url || '',
+        member_tag: myClubData?.member_tag || '',
       });
     } catch (err) {
       console.error('Failed to fetch events:', err);
@@ -235,7 +238,7 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
       });
       toast.success('Club profile updated successfully');
       setIsEditAboutOpen(false);
-      fetchEvents();
+      window.location.reload();
     } catch (error) {
       console.error('Failed to update club profile:', error);
       toast.error('Failed to update club profile');
@@ -412,14 +415,14 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
       >
         <div className="flex items-center gap-4 min-w-0">
-          <Avatar className={cn("h-16 w-16 border-2 border-brand/20 ring-4 ring-brand/5 shrink-0 rounded-2xl bg-white", getLogoBgClass(user.name))}>
-            <AvatarImage src={clubDetails?.logo_url || getClubLogoUrl(user.name) || ''} alt={user.name} className="object-contain p-1 drop-shadow-[0_1px_1px_rgba(0,0,0,0.12)]" />
+          <Avatar className={cn("h-16 w-16 border-2 border-brand/20 ring-4 ring-brand/5 shrink-0 rounded-2xl bg-white")}>
+            <AvatarImage src={clubDetails?.logo_url || ''} alt={user.name} className="object-contain p-1 drop-shadow-[0_1px_1px_rgba(0,0,0,0.12)]" />
             <AvatarFallback className="bg-brand text-white font-bold text-xl rounded-2xl flex items-center justify-center">
               {user.name.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground tracking-tight truncate">Welcome, {user.name}</h2>
+            <h2 className="text-xl sm:text-3xl lg:text-4xl font-bold text-foreground tracking-tight leading-tight max-w-full break-words">Welcome, {user.name}</h2>
             <p className="text-muted-foreground mt-2 text-sm sm:text-base font-medium">Manage your events and venue bookings efficiently.</p>
           </div>
         </div>
@@ -714,8 +717,8 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
             <div className="grid gap-2">
               <Label className="text-textSecondary font-semibold">Club/Committee Logo</Label>
               <div className="flex items-center gap-4 p-3 rounded-xl bg-bgMain border border-borderSoft">
-                <Avatar className={cn("h-14 w-14 border border-borderSoft rounded-xl shrink-0 bg-white", getLogoBgClass(user.name))}>
-                  <AvatarImage src={editForm.logo_url || getClubLogoUrl(user.name) || ''} alt={user.name} className="object-contain p-1" />
+                <Avatar className={cn("h-14 w-14 border border-borderSoft rounded-xl shrink-0 bg-white")}>
+                  <AvatarImage src={editForm.logo_url || ''} alt={user.name} className="object-contain p-1" />
                   <AvatarFallback className="bg-brand text-white font-semibold text-lg flex items-center justify-center">
                     {user.name.charAt(0).toUpperCase()}
                   </AvatarFallback>
@@ -797,6 +800,31 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
                   <span className="text-[10px] text-textMuted">PNG, JPG (Max 2MB)</span>
                 </div>
               </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-logo" className="text-textSecondary font-semibold">
+                Logo URL <span className="text-[10px] text-textMuted ml-1">(Optional. Uses initials if empty)</span>
+              </Label>
+              <Input
+                id="edit-logo"
+                value={editForm.logo_url}
+                onChange={e => setEditForm({ ...editForm, logo_url: e.target.value })}
+                placeholder="https://example.com/logo.png"
+                className="rounded-xl bg-bgMain border-borderSoft text-textPrimary h-10"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-member-tag" className="text-textSecondary font-semibold">
+                Member Tag <span className="text-[10px] text-textMuted ml-1">(Max 30 chars)</span>
+              </Label>
+              <Input
+                id="edit-member-tag"
+                value={editForm.member_tag}
+                maxLength={30}
+                onChange={e => setEditForm({ ...editForm, member_tag: e.target.value })}
+                placeholder="e.g. Official Campus Committee"
+                className="rounded-xl bg-bgMain border-borderSoft text-textPrimary h-10"
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="edit-description" className="text-textSecondary font-semibold">Description</Label>

@@ -179,7 +179,7 @@ const AdminDashboard: React.FC = () => {
         className="space-y-6 sm:space-y-8"
       >
         <div className="min-w-0">
-          <h2 className="text-2xl sm:text-3xl font-bold text-textPrimary tracking-tight">Admin Dashboard</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-textPrimary tracking-tight leading-tight max-w-full break-words">Admin Dashboard</h2>
         </div>
         <Alert variant="destructive" className="rounded-xl">
           <AlertTriangle size={16} />
@@ -230,7 +230,7 @@ const AdminDashboard: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
         >
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-foreground tracking-tighter">Admin Dashboard</h2>
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-foreground tracking-tighter leading-tight max-w-full break-words">Admin Dashboard</h2>
           <p className="text-textSecondary mt-2 sm:mt-3 text-sm sm:text-base font-medium max-w-2xl">Monitor venue bookings, manage approvals, and track system performance.</p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button
@@ -428,7 +428,7 @@ const AdminDashboard: React.FC = () => {
                 <CardTitle className="text-lg sm:text-xl">All Events</CardTitle>
                 <CardDescription className="mt-1">Complete list of bookings visible to admin</CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={exportAllEvents} disabled={isLoading || calendarEvents.length === 0} className="whitespace-nowrap">
+              <Button variant="outline" size="sm" onClick={exportAllEvents} disabled={isLoading || calendarEvents.length === 0} className="whitespace-nowrap border-[1.5px] border-slate-300 dark:border-slate-600">
                 Export CSV
               </Button>
             </div>
@@ -528,7 +528,7 @@ const AdminDashboard: React.FC = () => {
                 <CardTitle className="text-lg sm:text-xl">Pending Requests</CardTitle>
                 <CardDescription className="mt-1">Requests requiring immediate attention (Category B or Conflicts)</CardDescription>
               </div>
-              <Button variant="ghost" size="sm" asChild>
+              <Button variant="outline" size="sm" asChild className="border-[1.5px] border-slate-300 dark:border-slate-600">
                 <Link to="/admin/requests">
                   View All <ChevronRight size={16} />
                 </Link>

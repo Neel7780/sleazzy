@@ -25,7 +25,6 @@ import { Sheet, SheetContent, SheetTrigger } from '../components/ui/sheet';
 import { ThemeToggle } from '../components/theme-toggle';
 import NotificationPanel from '../components/NotificationPanel';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
-import { getClubLogoUrl, getLogoBgClass } from '../lib/logos';
 import { Logo } from '../components/Logo';
 import { GdgFooterCredit } from '../components/GdgFooterCredit';
 import { cn } from '@/lib/utils';
@@ -95,7 +94,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
 
   const navItemClass = ({ isActive }: { isActive: boolean }) =>
     cn(
-      'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 relative group',
+      'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 relative group cursor-pointer',
       isActive
         ? 'text-brand bg-brand/8 font-semibold'
         : 'text-textMuted dark:text-white hover:text-textPrimary dark:hover:text-white hover:bg-hoverSoft'
@@ -103,7 +102,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
 
   const mobileNavClass = (isActive: boolean) =>
     cn(
-      'flex flex-col items-center justify-center gap-0.5 py-1 px-2 rounded-xl transition-all duration-200 relative min-h-0',
+      'flex flex-col items-center justify-center gap-0.5 py-1 px-2 rounded-xl transition-all duration-200 relative min-h-0 cursor-pointer',
       isActive
         ? 'text-brand'
         : 'text-textMuted active:text-textPrimary'
@@ -156,8 +155,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
             className="p-3 border-t border-borderSoft"
           >
             <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-hoverSoft transition-colors group">
-               <Avatar className={cn("h-10 w-10 border border-borderSoft shrink-0 shadow-sm transition-all group-hover:border-brand/50 ring-2 ring-brand/10 bg-white", getLogoBgClass(user.name))}>
-                <AvatarImage src={user.logoUrl || getClubLogoUrl(user.name) || ''} alt={user.name} className="object-contain p-1 drop-shadow-[0_1px_1px_rgba(0,0,0,0.12)]" />
+               <Avatar className={cn("h-10 w-10 border border-borderSoft shrink-0 shadow-sm transition-all group-hover:border-brand/50 ring-2 ring-brand/10 bg-white")}>
+                <AvatarImage src={user.logoUrl || ''} alt={user.name} className="object-contain p-1 drop-shadow-[0_1px_1px_rgba(0,0,0,0.12)]" />
                 <AvatarFallback className="bg-brand text-white font-semibold text-sm flex items-center justify-center">
                   {user.name.charAt(0).toUpperCase()}
                 </AvatarFallback>
@@ -174,7 +173,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
                 variant="ghost"
                 size="icon"
                 onClick={onLogout}
-                className="h-8 w-8 rounded-lg text-textMuted hover:text-error hover:bg-error/10 shrink-0 opacity-0 group-hover:opacity-100 transition-all"
+                className="h-8 w-8 rounded-lg text-textMuted hover:text-error hover:bg-error/10 shrink-0 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
               >
                 <LogOut size={16} />
               </Button>
@@ -198,7 +197,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
             <div className="lg:hidden flex items-center gap-3">
               <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-9 w-9 p-0 text-textPrimary hover:bg-hoverSoft">
+                  <Button variant="ghost" size="icon" className="h-9 w-9 p-0 text-textPrimary hover:bg-hoverSoft cursor-pointer">
                     <Menu className="h-5 w-5" />
                     <span className="sr-only">Toggle Menu</span>
                   </Button>
@@ -239,8 +238,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
                   {/* User Profile Area (Mobile) */}
                   <div className="p-4 border-t border-borderSoft mt-auto bg-card">
                     <div className="flex items-center gap-3">
-                       <Avatar className={cn("h-10 w-10 border border-borderSoft shrink-0 shadow-sm ring-2 ring-brand/10 bg-white", getLogoBgClass(user.name))}>
-                        <AvatarImage src={user.logoUrl || getClubLogoUrl(user.name) || ''} alt={user.name} className="object-contain p-1" />
+                       <Avatar className={cn("h-10 w-10 border border-borderSoft shrink-0 shadow-sm ring-2 ring-brand/10 bg-white")}>
+                        <AvatarImage src={user.logoUrl || ''} alt={user.name} className="object-contain p-1" />
                         <AvatarFallback className="bg-brand text-white font-semibold">
                           {user.name.charAt(0).toUpperCase()}
                         </AvatarFallback>
@@ -254,16 +253,11 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
                 </SheetContent>
               </Sheet>
               
-              <Logo size="sm" showText={false} />
             </div>
-            <h1 className="text-base sm:text-lg font-bold text-textPrimary truncate tracking-tight lg:hidden">
-              {links.find(l => l.end ? location.pathname === l.to : location.pathname.startsWith(l.to))?.label
-                ?? (user.role === 'club' ? 'Club Portal' : 'Administration')}
-            </h1>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <div className="rounded-lg border border-borderSoft/60 shadow-sm bg-card/80 backdrop-blur flex items-center justify-center">
+            <div className="rounded-lg border border-borderSoft/60 shadow-sm bg-card/80 backdrop-blur flex items-center justify-center cursor-pointer">
               <ThemeToggle />
             </div>
             <NotificationPanel />
@@ -271,7 +265,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
               variant="ghost"
               size="sm"
               onClick={onLogout}
-              className="flex items-center gap-2 text-textMuted hover:text-error rounded-lg h-9 px-2.5 sm:px-3 font-medium transition-all border border-borderSoft/60 bg-card/80 backdrop-blur"
+              className="flex items-center gap-2 text-textMuted hover:text-error rounded-lg h-9 px-2.5 sm:px-3 font-medium transition-all border border-borderSoft/60 bg-card/80 backdrop-blur cursor-pointer"
             >
               <LogOut size={15} />
               <span className="hidden sm:inline">Logout</span>

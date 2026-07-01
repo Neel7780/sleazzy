@@ -51,7 +51,7 @@ router.patch('/clubs/my-club', authMiddleware, async (req, res) => {
     return res.status(403).json({ error: 'Only club accounts can edit their about section' });
   }
 
-  const { description, key_activities, linkedin_url, instagram_url, youtube_url, website_url, logo_url } = req.body;
+  const { description, key_activities, linkedin_url, instagram_url, youtube_url, website_url, logo_url, member_tag } = req.body;
 
   try {
     const clubResult = await db.query(
@@ -76,7 +76,8 @@ router.patch('/clubs/my-club', authMiddleware, async (req, res) => {
       instagram_url,
       youtube_url,
       website_url,
-      logo_url
+      logo_url,
+      member_tag
     };
 
     for (const [key, value] of Object.entries(fieldsToUpdate)) {
