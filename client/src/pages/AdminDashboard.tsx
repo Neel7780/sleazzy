@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CheckCircle, XCircle, ChevronRight, AlertCircle, Calendar as CalendarIcon, Users, AlertTriangle, RefreshCw, Plus } from 'lucide-react';
+import { CheckCircle, XCircle, ChevronRight, AlertCircle, Calendar as CalendarIcon, Users, AlertTriangle, RefreshCw, Plus, Check, X } from 'lucide-react';
 import { apiRequest, mapBooking, type ApiBooking, type ApiVenue } from '../lib/api';
 import { getErrorMessage } from '../lib/errors';
 import { toastError, toastSuccess } from '../lib/toast';
@@ -164,7 +164,7 @@ const AdminDashboard: React.FC = () => {
   const getEventsForDate = (date: Date) => {
     return calendarEvents.filter(e => {
       const eDate = new Date(e.date);
-      return isSameDay(eDate, date) && e.status === 'approved';
+      return isSameDay(eDate, date) && (e.status === 'approved' || e.status === 'partial');
     });
   };
 
@@ -172,7 +172,7 @@ const AdminDashboard: React.FC = () => {
 
   // Normalize to local midnight so DayPicker's modifier matching works
   const eventDates = React.useMemo(() =>
-    calendarEvents.filter(e => e.status === 'approved').map(e => {
+    calendarEvents.filter(e => e.status === 'approved' || e.status === 'partial').map(e => {
       const d = new Date(e.date);
       return new Date(d.getFullYear(), d.getMonth(), d.getDate());
     }),
@@ -180,15 +180,21 @@ const AdminDashboard: React.FC = () => {
   );
 
   const calendarEventsWithVenue: CalendarEvent[] = React.useMemo(() =>
-    calendarEvents.filter(e => e.status === 'approved').map(e => ({
-      eventName: e.eventName,
-      clubName: e.clubName,
-      date: e.date,
-      startTime: e.startTime,
-      endTime: e.endTime,
-      venueName: e.venueName || e.venueIds.map(getVenueName).join(', '),
-      status: e.status,
-    })),
+    calendarEvents.filter(e => e.status === 'approved' || e.status === 'partial').map(e => {
+      // For partial bookings, only show the names of approved venues
+      const approvedVenueName = e.status === 'partial'
+        ? e.bookings.filter(b => b.status === 'approved').map(b => getVenueName(b.venueId)).join(', ')
+        : (e.venueName || e.venueIds.map(getVenueName).join(', '));
+      return {
+        eventName: e.eventName,
+        clubName: e.clubName,
+        date: e.date,
+        startTime: e.startTime,
+        endTime: e.endTime,
+        venueName: approvedVenueName || e.venueName || e.venueIds.map(getVenueName).join(', '),
+        status: e.status,
+      };
+    }),
     [calendarEvents, venues]
   );
 
@@ -606,8 +612,44 @@ const AdminDashboard: React.FC = () => {
                           <span className="text-sm text-textMuted">{new Date(req.date).toLocaleDateString()}</span>
                         </div>
                         <h4 className="text-base sm:text-lg font-medium text-foreground">{req.eventName}</h4>
-                        <div className="mt-1 text-sm text-textMuted">
-                          Requested Venue(s): <span className="font-semibold text-foreground">{req.venueName || req.venueIds.map(getVenueName).join(', ')}</span> ({req.startTime} - {req.endTime})
+                        <div className="mt-2 text-sm text-textMuted">
+                          <div className="mb-2">Time: {req.startTime} - {req.endTime}</div>
+                          <div className="flex flex-col gap-2">
+                            {req.bookings.map(booking => (
+                              <div key={booking.id} className="flex items-center justify-between bg-background border border-borderSoft rounded-md p-2 text-sm">
+                                <span className="font-medium text-foreground">{getVenueName(booking.venueId)}</span>
+                                <div className="flex items-center gap-1 sm:gap-2">
+                                  <Badge variant={booking.status === 'approved' ? 'success' : booking.status === 'rejected' ? 'destructive' : 'pending'} className="text-[10px] h-5 mr-1">
+                                    {booking.status.toUpperCase()}
+                                  </Badge>
+                                  {booking.status !== 'rejected' && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 w-7 p-0 text-textMuted hover:text-error"
+                                      onClick={() => handleAction([booking.id], 'rejected')}
+                                      title="Reject this venue"
+                                      disabled={isProcessingAction}
+                                    >
+                                      <X size={14} />
+                                    </Button>
+                                  )}
+                                  {booking.status !== 'approved' && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 w-7 p-0 text-primary hover:text-primary/80"
+                                      onClick={() => handleAction([booking.id], 'approved')}
+                                      title="Approve this venue"
+                                      disabled={isProcessingAction}
+                                    >
+                                      <Check size={14} />
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                         {req.permissionsLink && (
                           <div className="mt-1">

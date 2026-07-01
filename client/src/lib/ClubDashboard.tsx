@@ -300,31 +300,37 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
   );
 
   const toCalendarEvents = React.useCallback((events: any[]): CalendarEvent[] =>
-    events.map(e => ({
-      eventName: e.eventName,
-      clubName: e.clubName,
-      date: e.date,
-      startTime: e.startTime,
-      endTime: e.endTime,
-      venueName: e.venueName || getVenueName(e.venueId || e.venueIds?.[0]),
-      status: e.status,
-      eventType: e.eventType,
-    })),
+    events.map(e => {
+      // For partial bookings, only show the names of approved venues
+      const approvedVenueName = e.status === 'partial'
+        ? (e.bookings || []).filter((b: any) => b.status === 'approved').map((b: any) => getVenueName(b.venueId)).join(', ')
+        : (e.venueName || getVenueName(e.venueId || e.venueIds?.[0]));
+      return {
+        eventName: e.eventName,
+        clubName: e.clubName,
+        date: e.date,
+        startTime: e.startTime,
+        endTime: e.endTime,
+        venueName: approvedVenueName || e.venueName || getVenueName(e.venueId || e.venueIds?.[0]),
+        status: e.status,
+        eventType: e.eventType,
+      };
+    }),
     [venues]
   );
 
   // Normalize to local midnight so DayPicker's modifier date-matching works correctly
-  const eventDates = React.useMemo(() => getEventDates(visibleGlobalEvents.filter(e => e.status === 'approved')), [getEventDates, visibleGlobalEvents]);
-  const myEventDates = React.useMemo(() => getEventDates(myEvents.filter(e => e.status === 'approved')), [getEventDates, myEvents]);
+  const eventDates = React.useMemo(() => getEventDates(visibleGlobalEvents.filter(e => e.status === 'approved' || (e.status as string) === 'partial')), [getEventDates, visibleGlobalEvents]);
+  const myEventDates = React.useMemo(() => getEventDates(myEvents.filter(e => e.status === 'approved' || (e.status as string) === 'partial')), [getEventDates, myEvents]);
 
-  // Show approved campus bookings plus this club's own approved bookings in the calendar views.
-  const calendarEventsWithVenue = React.useMemo(() => toCalendarEvents(groupBookings(visibleGlobalEvents.filter(e => e.status === 'approved'), venues)), [toCalendarEvents, visibleGlobalEvents, venues]);
-  const myCalendarEventsWithVenue = React.useMemo(() => toCalendarEvents(groupBookings(myEvents.filter(e => e.status === 'approved'), venues)), [toCalendarEvents, myEvents, venues]);
+  // Show approved campus bookings plus this club's own approved/partial bookings in the calendar views.
+  const calendarEventsWithVenue = React.useMemo(() => toCalendarEvents(groupBookings(visibleGlobalEvents.filter(e => e.status === 'approved' || (e.status as string) === 'partial'), venues)), [toCalendarEvents, visibleGlobalEvents, venues]);
+  const myCalendarEventsWithVenue = React.useMemo(() => toCalendarEvents(groupBookings(myEvents.filter(e => e.status === 'approved' || (e.status as string) === 'partial'), venues)), [toCalendarEvents, myEvents, venues]);
   const activeCalendar = React.useMemo(() => {
     if (calendarView === 'club') {
       return {
         title: 'My Club Calendar',
-        sourceEvents: myEvents.filter(e => e.status === 'approved'),
+        sourceEvents: myEvents.filter(e => e.status === 'approved' || (e.status as string) === 'partial'),
         calendarEvents: myCalendarEventsWithVenue,
         eventDates: myEventDates,
         emptyMessage: 'No club events scheduled for this day.',
@@ -333,7 +339,7 @@ const ClubDashboard: React.FC<ClubDashboardProps> = ({ user }) => {
 
     return {
       title: 'Global Event Schedule',
-      sourceEvents: visibleGlobalEvents.filter(e => e.status === 'approved'),
+      sourceEvents: visibleGlobalEvents.filter(e => e.status === 'approved' || (e.status as string) === 'partial'),
       calendarEvents: calendarEventsWithVenue,
       eventDates,
       emptyMessage: 'No events scheduled for this day.',

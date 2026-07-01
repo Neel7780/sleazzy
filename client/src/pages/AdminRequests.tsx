@@ -337,29 +337,61 @@ const AdminRequestRow: React.FC<AdminRequestRowProps> = ({ req, index, venues, h
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
               Send Mail
             </Button>
-            {!isHistoryTab && !isStarted && req.status !== 'rejected' && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={(e) => { e.stopPropagation(); handleAction(req.ids, 'rejected'); }}
-                className="text-textMuted hover:text-error"
-                title="Reject"
-                disabled={isProcessingAction}
-              >
-                <XCircle size={18} />
-              </Button>
-            )}
-            {!isHistoryTab && !isStarted && req.status !== 'approved' && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={(e) => { e.stopPropagation(); handleAction(req.ids, 'approved'); }}
-                className="text-primary hover:text-primary/80"
-                title="Approve"
-                disabled={isProcessingAction}
-              >
-                <CheckCircle size={18} />
-              </Button>
+            {!isHistoryTab && !isStarted && (
+              <>
+                {/* Single-venue: show individual approve/reject directly on the row */}
+                {!isMultiVenue && req.bookings[0]?.status !== 'rejected' && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => { e.stopPropagation(); handleAction([req.bookings[0].id], 'rejected'); }}
+                    className="text-textMuted hover:text-error"
+                    title="Reject this venue"
+                    disabled={isProcessingAction}
+                  >
+                    <XCircle size={18} />
+                  </Button>
+                )}
+                {!isMultiVenue && req.bookings[0]?.status !== 'approved' && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => { e.stopPropagation(); handleAction([req.bookings[0].id], 'approved'); }}
+                    className="text-primary hover:text-primary/80"
+                    title="Approve this venue"
+                    disabled={isProcessingAction}
+                  >
+                    <CheckCircle size={18} />
+                  </Button>
+                )}
+                {/* Multi-venue: show bulk Reject All / Approve All; individual controls are in the expanded panel */}
+                {isMultiVenue && req.status !== 'rejected' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); handleAction(req.ids, 'rejected'); }}
+                    className="text-textMuted hover:text-error text-xs"
+                    title="Reject all venues"
+                    disabled={isProcessingAction}
+                  >
+                    <XCircle size={15} className="mr-1" />
+                    <span className="hidden sm:inline">Reject All</span>
+                  </Button>
+                )}
+                {isMultiVenue && req.status !== 'approved' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); handleAction(req.ids, 'approved'); }}
+                    className="text-primary hover:text-primary/80 text-xs"
+                    title="Approve all venues"
+                    disabled={isProcessingAction}
+                  >
+                    <CheckCircle size={15} className="mr-1" />
+                    <span className="hidden sm:inline">Approve All</span>
+                  </Button>
+                )}
+              </>
             )}
           </div>
         </td>
