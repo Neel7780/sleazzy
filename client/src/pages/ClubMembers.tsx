@@ -476,24 +476,26 @@ const ClubMembers: React.FC<ClubMembersProps> = ({ user }) => {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="designation">Designation *</Label>
-              <select
-                id="designation"
+              <Select
                 value={['Convener', 'Dy. Convener', 'Core'].includes(formData.designation) ? formData.designation : 'Special Designation'}
-                onChange={(e) => {
-                  const val = e.target.value;
+                onValueChange={(val) => {
                   if (val === 'Special Designation') {
                     setFormData({ ...formData, designation: '' });
                   } else {
                     setFormData({ ...formData, designation: val });
                   }
                 }}
-                className="flex h-10 w-full rounded-xl border border-borderSoft/80 dark:border-white/10 bg-white/90 dark:bg-white/5 backdrop-blur-sm px-3 py-2 text-sm text-textPrimary focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:cursor-not-allowed disabled:opacity-50 transition-colors [&>option]:bg-card"
               >
-                <option value="Convener">Convener</option>
-                <option value="Dy. Convener">Dy. Convener</option>
-                <option value="Core">Core</option>
-                <option value="Special Designation">Special Designation</option>
-              </select>
+                <SelectTrigger id="designation" className="w-full">
+                  <SelectValue placeholder="Select Designation" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Convener">Convener</SelectItem>
+                  <SelectItem value="Dy. Convener">Dy. Convener</SelectItem>
+                  <SelectItem value="Core">Core</SelectItem>
+                  <SelectItem value="Special Designation">Special Designation</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             
             {!['Convener', 'Dy. Convener', 'Core'].includes(formData.designation) && (
@@ -594,16 +596,19 @@ const ClubMembers: React.FC<ClubMembersProps> = ({ user }) => {
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="resign_reason">Reason for Ending Tenure *</Label>
-              <select
-                id="resign_reason"
+              <Select
                 value={resignReason}
-                onChange={(e) => setResignReason(e.target.value)}
-                className="flex h-10 w-full rounded-xl border border-borderSoft/80 dark:border-white/10 bg-white/90 dark:bg-white/5 backdrop-blur-sm px-3 py-2 text-sm text-textPrimary focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand [&>option]:bg-card"
+                onValueChange={(val) => setResignReason(val)}
               >
-                <option value="Resigned">Resigned</option>
-                <option value="Impeached">Impeached</option>
-                <option value="Tenure Ended">Tenure Ended</option>
-              </select>
+                <SelectTrigger id="resign_reason" className="w-full">
+                  <SelectValue placeholder="Select Reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Resigned">Resigned</SelectItem>
+                  <SelectItem value="Impeached">Impeached</SelectItem>
+                  <SelectItem value="Tenure Ended">Tenure Ended</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>

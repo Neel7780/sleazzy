@@ -11,7 +11,7 @@ const router = express.Router();
 
 // Public Routes
 router.post('/register', async (req, res) => {
-    const { email, password, clubName, groupCategory, userId: providedUserId } = req.body;
+    const { email, password, clubName, groupCategory, organizationType, userId: providedUserId } = req.body;
 
     if (!email || !clubName || !groupCategory) {
         return res.status(400).json({ error: 'Missing required fields' });
@@ -56,9 +56,9 @@ router.post('/register', async (req, res) => {
         
         if (clubRes.rows.length === 0) {
             await db.query(`
-                INSERT INTO clubs (name, email, group_category)
-                VALUES ($1, $2, $3)
-            `, [clubName, email, groupCategory]);
+                INSERT INTO clubs (name, email, group_category, organization_type)
+                VALUES ($1, $2, $3, $4)
+            `, [clubName, email, groupCategory, organizationType || 'club']);
         }
 
         return res.status(201).json({ message: 'Registration successful', userId });

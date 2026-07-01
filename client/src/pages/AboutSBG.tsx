@@ -88,6 +88,44 @@ const Panel: React.FC<{
     </div>
 );
 
+const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+
+// Module-level cache to remember which images failed to load
+// This prevents flickering and repeated 404 network requests when the component re-renders
+const missingImageCache: Record<string, boolean> = {};
+
+const MemberAvatar = ({ member }: { member: Member }) => {
+    // Map to designation instead of name so it's reusable every year
+    // "Convener" -> "convener.jpg"
+    // "Dy. Convener" -> "dy_convener.jpg"
+    const expectedFilename = member.designation.trim().toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '') + '.jpg';
+    
+    const photoPath = `/sbg_photos/${expectedFilename}`;
+
+    const [imgError, setImgError] = useState(() => !!missingImageCache[photoPath]);
+    
+
+    if (imgError) {
+        return (
+            <div className="h-11 w-11 rounded-full bg-gradient-to-br from-brand/20 to-brand/5 border border-borderSoft/60 flex items-center justify-center shrink-0">
+                <span className="text-sm font-bold text-brand">{getInitials(member.full_name)}</span>
+            </div>
+        );
+    }
+
+    return (
+        <img 
+            src={photoPath} 
+            alt={member.full_name}
+            onError={() => {
+                missingImageCache[photoPath] = true;
+                setImgError(true);
+            }}
+            className="h-11 w-11 rounded-full object-cover border border-borderSoft/60 shrink-0 bg-card"
+        />
+    );
+};
+
 const AboutSBG: React.FC<{ onGoToLogin: () => void }> = ({ onGoToLogin }) => {
     const navigate = useNavigate();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -162,7 +200,7 @@ const AboutSBG: React.FC<{ onGoToLogin: () => void }> = ({ onGoToLogin }) => {
 
     const isActive = (path: string) => window.location.pathname === path;
 
-    const initials = (name: string) => name.split(' ').map(n => n[0]).join('').slice(0, 2);
+    const initials = (name: string) => getInitials(name);
 
     return (
         <div className="min-h-screen bg-bgMain">
@@ -386,9 +424,7 @@ const AboutSBG: React.FC<{ onGoToLogin: () => void }> = ({ onGoToLogin }) => {
                                             transition={{ delay: i * 0.05 }}
                                             className="flex items-center gap-3 rounded-xl border border-borderSoft/50 bg-hoverSoft/10 hover:bg-hoverSoft/30 hover:border-brand/30 transition-colors p-3"
                                         >
-                                            <div className="h-11 w-11 rounded-full bg-gradient-to-br from-brand/20 to-brand/5 border border-borderSoft/60 flex items-center justify-center shrink-0">
-                                                <span className="text-sm font-bold text-brand">{initials(member.full_name)}</span>
-                                            </div>
+                                            <MemberAvatar member={member} />
                                             <div className="min-w-0 flex-1">
                                                 <p className="font-semibold text-textPrimary text-sm truncate">{member.full_name}</p>
                                                 <span className={`inline-flex items-center px-2 py-0.5 mt-1 rounded-full text-[10px] font-semibold border ${DESIGNATION_COLORS[member.designation] || 'bg-slate-500/10 text-slate-500 border-slate-500/20'}`}>

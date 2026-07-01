@@ -42,7 +42,7 @@ const AdminClubs: React.FC = () => {
 
     // Add State
     const [addDialogOpen, setAddDialogOpen] = useState(false);
-    const [addFormData, setAddFormData] = useState({ name: '', email: '', password: '', groupCategory: 'A' });
+    const [addFormData, setAddFormData] = useState({ name: '', email: '', password: '', groupCategory: 'A', organizationType: 'club' });
     const [isAdding, setIsAdding] = useState(false);
 
     // Delete State
@@ -154,11 +154,12 @@ const AdminClubs: React.FC = () => {
                     email: addFormData.email,
                     password: addFormData.password,
                     groupCategory: addFormData.groupCategory,
+                    organizationType: addFormData.organizationType,
                 },
             });
             toastSuccess('Club added successfully');
             setAddDialogOpen(false);
-            setAddFormData({ name: '', email: '', password: '', groupCategory: 'A' });
+            setAddFormData({ name: '', email: '', password: '', groupCategory: 'A', organizationType: 'club' });
             fetchClubs();
         } catch (err) {
             toastError(err, 'Failed to add club');
@@ -448,6 +449,23 @@ const AdminClubs: React.FC = () => {
                                     <SelectItem value="A">Group A (Academic/Tech)</SelectItem>
                                     <SelectItem value="B">Group B (Cultural)</SelectItem>
                                     <SelectItem value="C">Group C (Sports)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="add-org-type">Organization Type</Label>
+                            <Select
+                                value={addFormData.organizationType}
+                                onValueChange={v => setAddFormData({ ...addFormData, organizationType: v })}
+                            >
+                                <SelectTrigger id="add-org-type" className="w-full h-10 border-borderSoft bg-transparent">
+                                    <SelectValue placeholder="Select Org Type" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-popover border-borderSoft">
+                                    <SelectItem value="club">Club</SelectItem>
+                                    <SelectItem value="committee">Committee</SelectItem>
+                                    <SelectItem value="organisation">Organisation</SelectItem>
+                                    <SelectItem value="other">Other (Hidden from directory)</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
