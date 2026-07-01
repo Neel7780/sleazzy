@@ -536,7 +536,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                       type="text"
                       inputMode="numeric"
                       maxLength={1}
-                      ref={(el) => (otpRefs.current[index] = el)}
+                      ref={(el) => { otpRefs.current[index] = el; }}
                       value={forgotOtp[index] || ''}
                       onChange={(e) => handleOtpChange(index, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(index, e)}
