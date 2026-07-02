@@ -81,8 +81,8 @@ const RegisterEventDialog: React.FC<RegisterEventDialogProps> = ({
       
       if (newEvent.event_type === 'co_curricular' && diffDays < 14) {
         timelineMsg = 'Co-curricular events require 14 days advance notice.';
-      } else if (newEvent.event_type === 'open_all' && diffDays < 7) {
-        timelineMsg = 'Open-for-All events require 7 days advance notice.';
+      } else if (newEvent.event_type === 'open_all' && diffDays < 20) {
+        timelineMsg = 'Open-for-All events require 20 days advance notice.';
       } else if (newEvent.event_type === 'closed_club' && diffDays < 1) {
         timelineMsg = 'Closed club events require 1 day advance notice.';
       }
@@ -152,7 +152,7 @@ const RegisterEventDialog: React.FC<RegisterEventDialogProps> = ({
         <div className="bg-brand/5 border border-brand/20 p-3 rounded-xl mt-2 text-sm text-brand font-medium">
           <h4 className="font-bold flex items-center gap-1.5 mb-1"><Info size={16}/> Event Registration Rules</h4>
           <ul className="list-disc pl-5 space-y-0.5 text-textSecondary text-xs">
-            <li><strong className="text-textPrimary">Open for All:</strong> 7 days advance notice.</li>
+            <li><strong className="text-textPrimary">Open for All:</strong> 20 days advance notice.</li>
             <li><strong className="text-textPrimary">Co-Curricular:</strong> 14 days advance notice. (Semester limits apply)</li>
             <li><strong className="text-textPrimary">Closed Club:</strong> 1 day advance notice.</li>
           </ul>

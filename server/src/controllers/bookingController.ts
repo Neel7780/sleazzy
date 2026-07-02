@@ -22,7 +22,7 @@ type BookingRequestBody = {
 
 const MIN_DAYS_BY_EVENT: Record<EventType, number> = {
   co_curricular: 14,
-  open_all: 7,
+  open_all: 20,
   closed_club: 1,
 };
 
