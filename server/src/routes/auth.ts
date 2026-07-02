@@ -6,11 +6,42 @@ import { db } from '../db';
 import authMiddleware from '../middleware/auth';
 import { isOfficialCommitteeEmail, OFFICIAL_EMAIL_DOMAIN } from '../constants/officialEmails';
 import { sendPasswordResetEmail } from '../services/email';
+import rateLimit from 'express-rate-limit';
+import postgresStores from '@acpr/rate-limit-postgresql';
 
 const router = express.Router();
 
+const pgStoreConfig = { connectionString: process.env.DATABASE_URL };
+
+const loginLimiter = rateLimit({
+    store: new postgresStores.PostgresStore(pgStoreConfig, 'login_limiter'),
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5,
+    message: { error: 'Too many login attempts, please try again after 15 minutes' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+const registerLimiter = rateLimit({
+    store: new postgresStores.PostgresStore(pgStoreConfig, 'register_limiter'),
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5,
+    message: { error: 'Too many registration attempts, please try again after 15 minutes' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+const passwordResetLimiter = rateLimit({
+    store: new postgresStores.PostgresStore(pgStoreConfig, 'password_reset_limiter'),
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 3,
+    message: { error: 'Too many password reset requests, please try again after 1 hour' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
 // Public Routes
-router.post('/register', async (req, res) => {
+router.post('/register', registerLimiter, async (req, res) => {
     const { email, password, clubName, groupCategory, organizationType, userId: providedUserId } = req.body;
 
     if (!email || !clubName || !groupCategory) {
@@ -69,7 +100,7 @@ router.post('/register', async (req, res) => {
     }
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -100,7 +131,7 @@ function generateOTP(): string {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', passwordResetLimiter, async (req, res) => {
     const { email } = req.body;
 
     if (!email) {
@@ -143,7 +174,7 @@ router.post('/forgot-password', async (req, res) => {
     }
 });
 
-router.post('/verify-otp', async (req, res) => {
+router.post('/verify-otp', loginLimiter, async (req, res) => {
     const { email, otp } = req.body;
 
     if (!email || !otp) {
@@ -174,7 +205,7 @@ router.post('/verify-otp', async (req, res) => {
     }
 });
 
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', loginLimiter, async (req, res) => {
     const { email, otp, newPassword } = req.body;
 
     if (!email || !otp || !newPassword) {

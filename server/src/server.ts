@@ -9,6 +9,7 @@ import crypto from 'crypto';
 import { createServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken'; // Added standard JWT verification
+import helmet from 'helmet';
 
 import bookingsRoutes from './routes/bookings';
 import adminRoutes from './routes/admin';
@@ -36,6 +37,10 @@ const getBuildVersion = (): string => {
   }
 };
 const BUILD_VERSION = getBuildVersion();
+
+app.set('trust proxy', 1);
+
+app.use(helmet());
 
 app.use(cors({
   origin: [
